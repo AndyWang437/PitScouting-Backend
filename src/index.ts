@@ -1,4 +1,4 @@
-import express from 'express';
+import express, { Request, Response } from 'express';
 import cors from 'cors';
 import path from 'path';
 import fs from 'fs';
@@ -37,7 +37,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api/teams', teamRoutes);
 
 // Root route
-app.get('/', (_req, res) => {
+app.get('/', (_req: Request, res: Response) => {
   res.json({ 
     message: 'Scouting App API is running',
     environment: env,
