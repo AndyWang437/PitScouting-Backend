@@ -1,5 +1,7 @@
-import express from 'express';
-import type { Request, Response, NextFunction } from 'express';
+import express = require('express');
+type Request = express.Request;
+type Response = express.Response;
+type NextFunction = express.NextFunction;
 import cors from 'cors';
 import path from 'path';
 import fs from 'fs';

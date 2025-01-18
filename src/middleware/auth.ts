@@ -1,4 +1,7 @@
-import type { Request, Response, NextFunction } from 'express';
+import express = require('express');
+type Request = express.Request;
+type Response = express.Response;
+type NextFunction = express.NextFunction;
 import jwt from 'jsonwebtoken';
 import { User } from '../models';
 

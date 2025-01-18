@@ -1,3 +1,4 @@
+import { beforeAll, afterAll } from '@jest/globals';
 import { sequelize } from '../models';
 
 beforeAll(async () => {

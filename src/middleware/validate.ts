@@ -1,4 +1,7 @@
-import { Request, Response, NextFunction } from 'express';
+import express = require('express');
+type Request = express.Request;
+type Response = express.Response;
+type NextFunction = express.NextFunction;
 import { validationResult, ValidationChain } from 'express-validator';
 
 export const validate = (validations: ValidationChain[]) => {
