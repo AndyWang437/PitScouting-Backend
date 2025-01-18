@@ -22,8 +22,20 @@
     "experimentalDecorators": true,
     "resolveJsonModule": true,
     "baseUrl": ".",
-    "typeRoots": ["./node_modules/@types", "./src/types"]
+    "typeRoots": [
+      "./node_modules/@types",
+      "./src/types"
+    ],
+    "types": [
+      "node",
+      "express",
+      "dotenv",
+      "express-validator"
+    ]
   },
   "exclude": ["node_modules"],
-  "include": ["./src/**/*.ts"]
+  "include": [
+    "./src/**/*.ts",
+    "./src/**/*.d.ts"
+  ]
 } 

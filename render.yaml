@@ -2,7 +2,11 @@ services:
   - type: web
     name: scouting-app-backend
     env: node
-    buildCommand: rm -rf dist && npm install && npm run build
+    buildCommand: |
+      rm -rf dist
+      rm -rf node_modules
+      npm install
+      npm run build
     startCommand: npm start
     envVars:
       - key: NODE_ENV
