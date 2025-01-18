@@ -14,4 +14,7 @@ services:
       - key: FRONTEND_URL
         sync: false
       - key: JWT_SECRET
-        sync: false 
+        sync: false
+    buildEnv:
+      - key: NODE_ENV
+        value: production 
