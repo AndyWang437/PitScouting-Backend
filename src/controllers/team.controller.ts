@@ -1,4 +1,7 @@
-import { Request, Response } from 'express';
+import express = require('express');
+type Request = express.Request;
+type Response = express.Response;
+type NextFunction = express.NextFunction;
 import { Team } from '../models';
 import { Op } from 'sequelize';
 
