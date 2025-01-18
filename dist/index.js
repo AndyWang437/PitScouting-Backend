@@ -21,7 +21,9 @@ app.use((0, cors_1.default)({
     credentials: true
 }));
 app.use(express_1.default.json());
-const uploadsDir = path_1.default.join(__dirname, '../uploads');
+const uploadsDir = process.env.NODE_ENV === 'production'
+    ? '/opt/render/project/src/uploads'
+    : path_1.default.join(__dirname, '../uploads');
 if (!fs_1.default.existsSync(uploadsDir)) {
     fs_1.default.mkdirSync(uploadsDir, { recursive: true });
 }

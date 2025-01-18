@@ -1,12 +1,14 @@
-import { Request } from 'express';
+import * as express from 'express';
 import { Multer } from 'multer';
 
 declare global {
   namespace Express {
     interface Request {
-      file?: Express.Multer.File;
-      files?: Express.Multer.File[];
+      file?: Multer.File;
+      files?: Multer.File[];
+      user?: any;
     }
-    interface Multer extends Multer {}
   }
-} 
+}
+
+export = express; 

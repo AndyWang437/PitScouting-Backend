@@ -28,7 +28,8 @@
     ],
     "types": [
       "node",
-      "express"
+      "express",
+      "jest"
     ]
   },
   "exclude": ["node_modules"],

@@ -1,8 +1,8 @@
-import express from 'express';
+import express, { Router } from 'express';
 import { body } from 'express-validator';
 import * as authController from '../controllers/auth.controller';
 
-const router = express.Router();
+const router: Router = express.Router();
 
 router.post(
   '/register',

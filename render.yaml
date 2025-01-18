@@ -3,8 +3,7 @@ services:
     name: scouting-app-backend
     env: node
     buildCommand: |
-      rm -rf dist
-      rm -rf node_modules
+      if [ -d "dist" ]; then mv dist dist_old; fi
       npm install
       npm run build
     startCommand: npm start

@@ -17,11 +17,17 @@ if ('use_env_variable' in dbConfig && dbConfig.use_env_variable) {
     const dbUrl = process.env[dbConfig.use_env_variable];
     if (!dbUrl)
         throw new Error(`Environment variable ${dbConfig.use_env_variable} is not set`);
-    exports.sequelize = sequelize = new sequelize_1.Sequelize(dbUrl, Object.assign(Object.assign({}, dbConfig), { dialect: 'postgres' }));
+    exports.sequelize = sequelize = new sequelize_1.Sequelize(dbUrl, {
+        ...dbConfig,
+        dialect: 'postgres',
+    });
 }
 else {
     const config = dbConfig;
-    exports.sequelize = sequelize = new sequelize_1.Sequelize(config.database, config.username, config.password, Object.assign(Object.assign({}, dbConfig), { dialect: 'postgres' }));
+    exports.sequelize = sequelize = new sequelize_1.Sequelize(config.database, config.username, config.password, {
+        ...dbConfig,
+        dialect: 'postgres',
+    });
 }
 user_1.User.initialize(sequelize);
 team_1.default.initialize(sequelize);
