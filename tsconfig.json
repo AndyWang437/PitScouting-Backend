@@ -28,9 +28,7 @@
     ],
     "types": [
       "node",
-      "express",
-      "dotenv",
-      "express-validator"
+      "express"
     ]
   },
   "exclude": ["node_modules"],
