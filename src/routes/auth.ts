@@ -1,4 +1,5 @@
-import express, { Router } from 'express';
+import express from 'express';
+import type { Router } from 'express';
 import { body } from 'express-validator';
 import * as authController from '../controllers/auth.controller';
 

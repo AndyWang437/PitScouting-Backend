@@ -1,12 +1,26 @@
-import * as express from 'express';
-import { Multer } from 'multer';
+import { Request, Response, NextFunction } from 'express';
+import { User } from '../models/user';
 
 declare global {
   namespace Express {
     interface Request {
-      file?: Multer.File;
-      files?: Multer.File[];
-      user?: any;
+      file?: Express.Multer.File;
+      files?: Express.Multer.File[];
+      user?: User;
+    }
+
+    namespace Multer {
+      interface File {
+        fieldname: string;
+        originalname: string;
+        encoding: string;
+        mimetype: string;
+        size: number;
+        destination: string;
+        filename: string;
+        path: string;
+        buffer: Buffer;
+      }
     }
   }
 }
