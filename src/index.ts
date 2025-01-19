@@ -13,7 +13,7 @@ const app = express();
 const port = process.env.PORT || 5001;
 const env = process.env.NODE_ENV || 'development';
 const corsOrigin = env === 'production' 
-  ? process.env.FRONTEND_URL || 'https://your-frontend-url.vercel.app'
+  ? process.env.FRONTEND_URL || 'https://1334pitscouting.vercel.app/'
   : 'http://localhost:3000';
 
 // CORS configuration
