@@ -15,11 +15,15 @@ services:
       - key: PORT
         value: 5001
       - key: DATABASE_URL
-        sync: false
+        fromDatabase:
+          name: pit-scouting-db
+          property: connectionString
       - key: FRONTEND_URL
         sync: false
       - key: JWT_SECRET
         sync: false
-    buildEnv:
-      - key: NODE_ENV
-        value: production 
+
+databases:
+  - name: pit-scouting-db
+    databaseName: pit_scouting
+    plan: free 
