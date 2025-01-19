@@ -3,7 +3,6 @@ services:
     name: scouting-app-backend
     env: node
     buildCommand: |
-      rm -rf dist
       npm run build
     startCommand: npm start
     envVars:
