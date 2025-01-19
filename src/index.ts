@@ -11,7 +11,7 @@ import teamRoutes from './routes/teams';
 import { initDb } from './db/init';
 
 const app = express();
-const port = process.env.PORT || 5001;
+const port = parseInt(process.env.PORT || '10000', 10);
 const env = process.env.NODE_ENV || 'development';
 
 // Update CORS configuration to only allow your deployed frontend
@@ -51,13 +51,11 @@ app.get('/', (_req: Request, res: Response) => {
 
 const startServer = async () => {
   try {
-    // Initialize database
     await initDb();
-    
-    // Your existing server setup code
     await sequelize.authenticate();
     console.log('Database connected successfully');
-    app.listen(port, () => {
+    
+    app.listen(port, '0.0.0.0', () => {
       console.log(`Server running on port ${port}`);
       console.log(`Environment: ${env}`);
       console.log('API endpoints:');

@@ -1,9 +1,6 @@
 import { Sequelize } from 'sequelize';
-import { exec } from 'child_process';
-import { promisify } from 'util';
 import config from '../../config/config.js';
 
-const execAsync = promisify(exec);
 const env = process.env.NODE_ENV || 'development';
 const dbConfig = config[env];
 
@@ -17,6 +14,12 @@ if (env === 'production') {
         require: true,
         rejectUnauthorized: false
       }
+    },
+    pool: {
+      max: 5,
+      min: 0,
+      acquire: 30000,
+      idle: 10000
     },
     logging: false
   });
@@ -32,17 +35,7 @@ const initDb = async () => {
   try {
     await sequelize.authenticate();
     console.log('Database connection established successfully.');
-    
-    // Try to run migrations on startup
-    if (env === 'production') {
-      try {
-        await execAsync('npx sequelize-cli db:migrate');
-        console.log('Migrations completed successfully');
-      } catch (migrationError) {
-        console.error('Migration error:', migrationError);
-        // Don't throw the error, just log it
-      }
-    }
+    console.log('Environment:', env);
     
     // Only force sync in development
     if (env === 'development') {
