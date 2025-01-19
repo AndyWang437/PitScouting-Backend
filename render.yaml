@@ -2,11 +2,7 @@ services:
   - type: web
     name: scouting-app-backend
     env: node
-    buildCommand: |
-      npm install
-      npm install --save @types/express @types/cors @types/bcryptjs @types/jsonwebtoken @types/multer @types/node typescript ts-node
-      npm install --save-dev @types/express @types/cors @types/bcryptjs @types/jsonwebtoken @types/multer @types/node
-      npm run build
+    buildCommand: npm install && npm run build
     startCommand: |
       node -e "const { execSync } = require('child_process'); try { execSync('npx sequelize-cli db:migrate', { stdio: 'inherit' }); } catch (error) { console.error('Migration failed:', error); process.exit(1); }" && npm start
     envVars:
