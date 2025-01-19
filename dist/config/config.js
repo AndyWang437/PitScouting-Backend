@@ -1,37 +1,37 @@
-"use strict";
-var __importDefault = (this && this.__importDefault) || function (mod) {
-    return (mod && mod.__esModule) ? mod : { "default": mod };
+require('dotenv').config();
+
+const parseDbUrl = (url) => {
+  if (!url) return {};
+  const matches = url.match(/postgres:\/\/([^:]+):([^@]+)@([^:]+):(\d+)\/(.+)/);
+  if (!matches) return {};
+  return {
+    username: matches[1],
+    password: matches[2],
+    host: matches[3],
+    port: matches[4],
+    database: matches[5],
+  };
 };
-Object.defineProperty(exports, "__esModule", { value: true });
-const dotenv_1 = __importDefault(require("dotenv"));
-dotenv_1.default.config();
-const config = {
-    development: {
-        username: process.env.DB_USER || 'postgres',
-        password: process.env.DB_PASSWORD || 'postgres',
-        database: process.env.DB_NAME || 'scouting_app',
-        host: process.env.DB_HOST || 'localhost',
-        dialect: 'postgres',
-        logging: false,
+
+const dbConfig = parseDbUrl(process.env.DATABASE_URL);
+
+module.exports = {
+  development: {
+    ...dbConfig,
+    dialect: 'postgres',
+  },
+  test: {
+    ...dbConfig,
+    dialect: 'postgres',
+  },
+  production: {
+    ...dbConfig,
+    dialect: 'postgres',
+    dialectOptions: {
+      ssl: {
+        require: true,
+        rejectUnauthorized: false,
+      },
     },
-    test: {
-        username: process.env.DB_USER || 'postgres',
-        password: process.env.DB_PASSWORD || 'postgres',
-        database: process.env.DB_TEST_NAME || 'scouting_app_test',
-        host: process.env.DB_HOST || 'localhost',
-        dialect: 'postgres',
-        logging: false,
-    },
-    production: {
-        use_env_variable: 'DATABASE_URL',
-        dialect: 'postgres',
-        dialectOptions: {
-            ssl: {
-                require: true,
-                rejectUnauthorized: false,
-            },
-        },
-    },
-};
-exports.default = config;
-//# sourceMappingURL=config.js.map
+  },
+}; 
