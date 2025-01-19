@@ -6,13 +6,14 @@ import jwt from 'jsonwebtoken';
 import { User } from '../models';
 import env from '../config/env';
 
-export const register = async (req: Request, res: Response): Promise<Response> => {
+export const register = async (req: Request, res: Response): Promise<void> => {
   try {
     const { name, email, password, teamNumber } = req.body;
 
     const existingUser = await User.findOne({ where: { email } });
     if (existingUser) {
-      return res.status(400).json({ error: 'Email already exists' });
+      res.status(400).json({ error: 'Email already exists' });
+      return;
     }
 
     const user = await User.create({
@@ -24,7 +25,7 @@ export const register = async (req: Request, res: Response): Promise<Response> =
 
     const token = jwt.sign({ id: user.id }, env.jwtSecret);
 
-    return res.status(201).json({
+    res.status(201).json({
       token,
       user: {
         id: user.id,
@@ -35,19 +36,18 @@ export const register = async (req: Request, res: Response): Promise<Response> =
     });
   } catch (error) {
     console.error('Registration error:', error);
-    return res.status(400).json({ error: 'Error creating user' });
+    res.status(400).json({ error: 'Error creating user' });
   }
 };
 
-export const login = async (req: Request, res: Response): Promise<Response> => {
+export const login = async (req: Request, res: Response): Promise<void> => {
   try {
     const { email, password } = req.body;
     console.log('Login attempt for email:', email);
 
-    // Hardcoded admin credentials
     if (email === '1334admin@gmail.com' && password === 'otisit!!!') {
       const token = jwt.sign({ id: 1, isAdmin: true }, env.jwtSecret);
-      return res.json({
+      res.json({
         token,
         user: {
           id: 1,
@@ -56,24 +56,24 @@ export const login = async (req: Request, res: Response): Promise<Response> => {
           teamNumber: 1334,
         },
       });
+      return;
     }
 
     const user = await User.findOne({ where: { email } });
     if (!user) {
-      console.log('User not found for email:', email);
-      return res.status(401).json({ error: 'Invalid credentials' });
+      res.status(401).json({ error: 'Invalid credentials' });
+      return;
     }
 
     const isValidPassword = await user.validatePassword(password);
-    console.log('Password validation result:', isValidPassword);
-    
     if (!isValidPassword) {
-      return res.status(401).json({ error: 'Invalid credentials' });
+      res.status(401).json({ error: 'Invalid credentials' });
+      return;
     }
 
     const token = jwt.sign({ id: user.id }, env.jwtSecret);
 
-    return res.json({
+    res.json({
       token,
       user: {
         id: user.id,
@@ -84,6 +84,6 @@ export const login = async (req: Request, res: Response): Promise<Response> => {
     });
   } catch (error) {
     console.error('Login error:', error);
-    return res.status(400).json({ error: 'Error logging in' });
+    res.status(400).json({ error: 'Error logging in' });
   }
 }; 

@@ -89,12 +89,13 @@ export const createTeam = async (req: Request, res: Response): Promise<void> => 
   }
 };
 
-export const getTeam = async (req: Request, res: Response): Promise<Response> => {
+export const getTeam = async (req: Request, res: Response): Promise<void> => {
   try {
     const teamNumber = parseInt(req.params.teamNumber);
     
     if (isNaN(teamNumber)) {
-      return res.status(400).json({ error: 'Invalid team number' });
+      res.status(400).json({ error: 'Invalid team number' });
+      return;
     }
 
     const team = await Team.findOne({
@@ -102,31 +103,33 @@ export const getTeam = async (req: Request, res: Response): Promise<Response> =>
     });
 
     if (!team) {
-      return res.status(404).json({ error: 'Team not found' });
+      res.status(404).json({ error: 'Team not found' });
+      return;
     }
 
-    return res.json(team);
+    res.json(team);
   } catch (error: any) {
     console.error('Error fetching team:', error);
-    return res.status(500).json({ error: 'Error fetching team', details: error.message });
+    res.status(500).json({ error: 'Error fetching team', details: error.message });
   }
 };
 
-export const updateTeam = async (req: Request, res: Response): Promise<Response> => {
+export const updateTeam = async (req: Request, res: Response): Promise<void> => {
   try {
     const team = await Team.findOne({
       where: { teamNumber: req.params.teamNumber },
     });
 
     if (!team) {
-      return res.status(404).json({ error: 'Team not found' });
+      res.status(404).json({ error: 'Team not found' });
+      return;
     }
 
     await team.update(req.body);
-    return res.json(team);
+    res.json(team);
   } catch (error: any) {
     console.error('Error updating team:', error);
-    return res.status(400).json({ error: 'Error updating team', details: error.message });
+    res.status(400).json({ error: 'Error updating team', details: error.message });
   }
 };
 
