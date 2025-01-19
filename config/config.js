@@ -17,21 +17,27 @@ const dbConfig = parseDbUrl(process.env.DATABASE_URL);
 
 module.exports = {
   development: {
-    ...dbConfig,
-    dialect: 'postgres',
+    username: process.env.DB_USER || 'postgres',
+    password: process.env.DB_PASSWORD || 'postgres',
+    database: process.env.DB_NAME || 'scouting_app',
+    host: process.env.DB_HOST || 'localhost',
+    dialect: 'postgres'
   },
   test: {
-    ...dbConfig,
-    dialect: 'postgres',
+    username: process.env.DB_USER || 'postgres',
+    password: process.env.DB_PASSWORD || 'postgres',
+    database: process.env.DB_TEST_NAME || 'scouting_app_test',
+    host: process.env.DB_HOST || 'localhost',
+    dialect: 'postgres'
   },
   production: {
-    ...dbConfig,
+    url: process.env.DATABASE_URL,
     dialect: 'postgres',
     dialectOptions: {
       ssl: {
         require: true,
-        rejectUnauthorized: false,
-      },
-    },
-  },
-}; 
+        rejectUnauthorized: false
+      }
+    }
+  }
+};
