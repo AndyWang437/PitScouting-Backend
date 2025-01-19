@@ -6,7 +6,7 @@ services:
       npm install
       npm run build
     startCommand: |
-      cd dist && npx sequelize-cli db:migrate && cd .. && npm start
+      NODE_ENV=production sequelize-cli db:migrate && npm start
     envVars:
       - key: NODE_ENV
         value: production

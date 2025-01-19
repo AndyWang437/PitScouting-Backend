@@ -1,11 +1,8 @@
 const path = require('path');
 
-const isProduction = process.env.NODE_ENV === 'production';
-const rootDir = isProduction ? 'dist' : '.';
-
 module.exports = {
-  'config': path.resolve(rootDir, 'config', 'config.js'),
-  'models-path': path.resolve(rootDir, 'src', 'models'),
-  'seeders-path': path.resolve(rootDir, 'seeders'),
-  'migrations-path': path.resolve(rootDir, 'migrations')
+  'config': path.resolve('config', 'config.js'),
+  'models-path': path.resolve('src', 'models'),
+  'seeders-path': path.resolve('seeders'),
+  'migrations-path': path.resolve('migrations')
 }; 

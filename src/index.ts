@@ -14,14 +14,9 @@ const app = express();
 const port = process.env.PORT || 5001;
 const env = process.env.NODE_ENV || 'development';
 
-// Remove trailing slash from FRONTEND_URL if it exists
-const corsOrigin = env === 'production' 
-  ? (process.env.FRONTEND_URL || 'https://1334pitscouting.vercel.app').replace(/\/$/, '')
-  : 'http://localhost:3000';
-
-// CORS configuration
+// Update CORS configuration to only allow your deployed frontend
 app.use(cors({
-  origin: process.env.FRONTEND_URL || 'https://1334pitscouting.vercel.app',
+  origin: 'https://1334pitscouting.vercel.app',
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'Accept'],
@@ -50,7 +45,7 @@ app.get('/', (_req: Request, res: Response) => {
   res.json({ 
     message: 'Scouting App API is running',
     environment: env,
-    corsOrigin
+    corsOrigin: 'https://1334pitscouting.vercel.app'
   });
 });
 
@@ -65,7 +60,6 @@ const startServer = async () => {
     app.listen(port, () => {
       console.log(`Server running on port ${port}`);
       console.log(`Environment: ${env}`);
-      console.log(`CORS origin: ${corsOrigin}`);
       console.log('API endpoints:');
       console.log('- POST /api/auth/login');
       console.log('- POST /api/auth/register');
