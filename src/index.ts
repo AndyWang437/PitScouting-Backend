@@ -21,7 +21,7 @@ const corsOrigin = env === 'production'
 
 // CORS configuration
 app.use(cors({
-  origin: ['https://1334pitscouting.vercel.app', 'http://localhost:3000'],
+  origin: process.env.FRONTEND_URL || 'https://1334pitscouting.vercel.app',
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'Accept'],
