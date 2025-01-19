@@ -12,14 +12,18 @@ import teamRoutes from './routes/teams';
 const app = express();
 const port = process.env.PORT || 5001;
 const env = process.env.NODE_ENV || 'development';
+
+// Remove trailing slash from FRONTEND_URL if it exists
 const corsOrigin = env === 'production' 
-  ? process.env.FRONTEND_URL || 'https://1334pitscouting.vercel.app/'
+  ? (process.env.FRONTEND_URL || 'https://1334pitscouting.vercel.app').replace(/\/$/, '')
   : 'http://localhost:3000';
 
 // CORS configuration
 app.use(cors({
   origin: corsOrigin,
-  credentials: true
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization']
 }));
 
 app.use(express.json());
