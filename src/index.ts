@@ -8,6 +8,7 @@ import fs from 'fs';
 import { sequelize } from './models';
 import authRoutes from './routes/auth';
 import teamRoutes from './routes/teams';
+import { initDb } from './db/init';
 
 const app = express();
 const port = process.env.PORT || 5001;
@@ -23,7 +24,8 @@ app.use(cors({
   origin: ['https://1334pitscouting.vercel.app', 'http://localhost:3000'],
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization']
+  allowedHeaders: ['Content-Type', 'Authorization', 'Accept'],
+  exposedHeaders: ['Content-Range', 'X-Content-Range']
 }));
 
 app.use(express.json());
@@ -52,9 +54,13 @@ app.get('/', (_req: Request, res: Response) => {
   });
 });
 
-// Database connection and server start
-sequelize.authenticate()
-  .then(() => {
+const startServer = async () => {
+  try {
+    // Initialize database
+    await initDb();
+    
+    // Your existing server setup code
+    await sequelize.authenticate();
     console.log('Database connected successfully');
     app.listen(port, () => {
       console.log(`Server running on port ${port}`);
@@ -67,9 +73,12 @@ sequelize.authenticate()
       console.log('- POST /api/teams');
       console.log('- GET /api/teams/:teamNumber');
     });
-  })
-  .catch((error) => {
-    console.error('Unable to connect to the database:', error);
-  });
+  } catch (error) {
+    console.error('Failed to start server:', error);
+    process.exit(1);
+  }
+};
+
+startServer();
 
 export default app; 
