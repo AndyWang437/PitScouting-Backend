@@ -19,9 +19,9 @@ services:
           name: pit-scouting-db
           property: connectionString
       - key: FRONTEND_URL
-        sync: false
+        value: https://1334pitscouting.vercel.app
       - key: JWT_SECRET
-        sync: false
+        value: 70409c4d84c1d296fac9dcc4043c713315a1676a3ac11722e9b740ffb99073f729242604cb9f11bac98f3da6e695c8045d7f2b17707ee6be55f653e6d1fbb850
 
 databases:
   - name: pit-scouting-db
