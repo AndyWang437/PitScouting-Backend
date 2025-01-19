@@ -20,4 +20,5 @@ services:
         sync: false
     buildEnv:
       - key: NODE_ENV
-        value: production 
+        value: production
+    postDeploy: npx sequelize-cli db:migrate 
