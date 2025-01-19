@@ -6,7 +6,9 @@ services:
       if [ -d "dist" ]; then mv dist dist_old; fi
       npm install
       npm run build
-    startCommand: npm start
+    startCommand: |
+      npx sequelize-cli db:migrate
+      npm start
     envVars:
       - key: NODE_ENV
         value: production
@@ -20,5 +22,4 @@ services:
         sync: false
     buildEnv:
       - key: NODE_ENV
-        value: production
-    postDeploy: npx sequelize-cli db:migrate 
+        value: production 
