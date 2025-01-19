@@ -2,7 +2,9 @@ services:
   - type: web
     name: scouting-app-backend
     env: node
-    buildCommand: npm run build
+    buildCommand: |
+      npm install
+      npm run build
     startCommand: |
       npx sequelize-cli db:migrate
       npm start
