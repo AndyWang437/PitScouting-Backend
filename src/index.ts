@@ -5,7 +5,7 @@ type NextFunction = express.NextFunction;
 import cors from 'cors';
 import path from 'path';
 import fs from 'fs';
-import { sequelize } from './models';
+import { sequelize } from './db/init';
 import authRoutes from './routes/auth';
 import teamRoutes from './routes/teams';
 import { initDb } from './db/init';
