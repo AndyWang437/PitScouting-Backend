@@ -2,16 +2,17 @@ services:
   - type: web
     name: scouting-app-backend
     env: node
-    buildCommand: |
-      npm run build
-    startCommand: npm start
+    buildCommand: npm run build
+    startCommand: |
+      npx sequelize-cli db:migrate
+      npm start
     envVars:
       - key: NODE_ENV
         value: production
       - key: PORT
         value: 5001
       - key: DATABASE_URL
-        fromDatabase:postgresql://pit_scouting_user:fKWigWjebnHYJ5fGzZAiWBtH6PvvelAl@dpg-cu5usnaj1k6c73f2hnc0-a/pit_scouting
+        fromDatabase:
           name: pit-scouting-db
           property: connectionString
       - key: FRONTEND_URL

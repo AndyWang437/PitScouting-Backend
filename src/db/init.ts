@@ -1,26 +1,38 @@
 import { Sequelize } from 'sequelize';
-import config from '../../config/config';
+import config from '../../config/config.js';
 
 const env = process.env.NODE_ENV || 'development';
-const dbConfig = config[env as 'development' | 'test' | 'production'];
+const dbConfig = config[env];
 
-export const sequelize = new Sequelize(process.env.DATABASE_URL!, {
-  dialect: 'postgres',
-  dialectOptions: env === 'production' ? {
-    ssl: {
-      require: true,
-      rejectUnauthorized: false
-    }
-  } : {},
-  logging: false
-});
+let sequelize: Sequelize;
 
-export const initDb = async () => {
+if (env === 'production') {
+  sequelize = new Sequelize(process.env.DATABASE_URL!, {
+    dialect: 'postgres',
+    dialectOptions: {
+      ssl: {
+        require: true,
+        rejectUnauthorized: false
+      }
+    },
+    logging: false
+  });
+} else {
+  sequelize = new Sequelize(dbConfig.database!, dbConfig.username!, dbConfig.password!, {
+    host: dbConfig.host,
+    dialect: 'postgres',
+    logging: false
+  });
+}
+
+const initDb = async () => {
   try {
     await sequelize.authenticate();
     console.log('Database connection established successfully.');
+    console.log('Database URL:', process.env.DATABASE_URL);
+    console.log('Environment:', env);
     
-    // Force sync in development only
+    // Only force sync in development
     if (env === 'development') {
       await sequelize.sync({ force: true });
       console.log('Database synced in development mode');
@@ -29,4 +41,6 @@ export const initDb = async () => {
     console.error('Unable to connect to the database:', error);
     throw error;
   }
-}; 
+};
+
+export { sequelize, initDb }; 

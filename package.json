@@ -5,7 +5,8 @@
   "main": "dist/index.js",
   "scripts": {
     "start": "node dist/index.js",
-    "build": "tsc && cp -r src/migrations dist/migrations && cp -r config dist/config",
+    "build": "tsc && npm run copy-files",
+    "copy-files": "copyfiles -u 1 \"src/migrations/**/*\" dist/migrations && copyfiles -u 1 \"config/**/*\" dist/config",
     "dev": "ts-node-dev src/index.ts",
     "test": "echo \"Error: no test specified\" && exit 1",
     "migrate": "sequelize-cli db:migrate"
