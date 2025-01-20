@@ -1,6 +1,6 @@
 services:
   - type: web
-    name: scouting-app-backend
+    name: pit-scouting-backend
     env: node
     buildCommand: |
       npm install

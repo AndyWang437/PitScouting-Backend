@@ -4,7 +4,7 @@ const bcrypt = require('bcryptjs');
 const pool = new Pool({
   user: 'postgres',
   password: 'postgres',
-  host: 'localhost',
+  host: 'dpg-cu5usnaj1k6c73f2hnc0-a',
   database: 'scouting_app',
   port: 5432
 });
