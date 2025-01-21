@@ -1,20 +1,8 @@
 import express from 'express';
-import multer from 'multer';
-import path from 'path';
 import { createTeam, getTeam, getAllTeams, updateTeam } from '../controllers/team.controller';
+import upload from '../middleware/upload';
 
 const router = express.Router();
-
-const storage = multer.diskStorage({
-  destination: (_req, _file, cb) => {
-    cb(null, './uploads/');  // Make sure this path exists
-  },
-  filename: (_req, file, cb) => {
-    cb(null, `${Date.now()}${path.extname(file.originalname)}`);
-  }
-});
-
-const upload = multer({ storage });
 
 router.post('/', upload.single('robotImage'), createTeam);
 router.get('/:teamNumber', getTeam);
