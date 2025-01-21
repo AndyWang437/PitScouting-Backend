@@ -61,7 +61,7 @@ export const createTeam = async (req: Request, res: Response): Promise<void> => 
       robotWeight,
       drivetrainType: req.body.drivetrainType || null,
       notes: req.body.notes || '',
-      imageUrl: req.file ? `/uploads/${req.file.filename}` : null,
+      imageUrl: req.file ? `uploads/${req.file.filename}` : null,
     };
 
     console.log('Processed team data:', JSON.stringify(processedData, null, 2));
