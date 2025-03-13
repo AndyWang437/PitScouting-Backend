@@ -3,7 +3,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.Team = exports.User = exports.sequelize = void 0;
+exports.Match = exports.Team = exports.User = exports.sequelize = void 0;
 const sequelize_1 = require("sequelize");
 const init_1 = require("../db/init");
 const config_1 = __importDefault(require("../../config/config"));
@@ -11,6 +11,8 @@ const user_1 = require("./user");
 Object.defineProperty(exports, "User", { enumerable: true, get: function () { return user_1.User; } });
 const team_1 = __importDefault(require("./team"));
 exports.Team = team_1.default;
+const match_1 = __importDefault(require("./match"));
+exports.Match = match_1.default;
 const env = process.env.NODE_ENV || 'development';
 const dbConfig = config_1.default[env];
 console.log('Initializing models...');
@@ -34,20 +36,28 @@ else {
     console.log('Using sequelize instance from db/init');
     exports.sequelize = sequelize = init_1.sequelize;
 }
-try {
-    console.log('Initializing User model...');
-    user_1.User.initialize(sequelize);
-    console.log('User model initialized successfully');
-    console.log('Initializing Team model...');
-    team_1.default.initialize(sequelize);
-    console.log('Team model initialized successfully');
-    console.log('All models initialized successfully');
-}
-catch (error) {
-    console.error('Error initializing models:', error);
-    if (error instanceof Error) {
-        console.error('Error message:', error.message);
-        console.error('Error stack:', error.stack);
+// Initialize models without trying to create tables
+// Tables will be created by the setup.ts script
+const initializeModels = () => {
+    try {
+        console.log('Initializing User model...');
+        user_1.User.initialize(sequelize);
+        console.log('User model initialized successfully');
+        console.log('Initializing Team model...');
+        team_1.default.initialize(sequelize);
+        console.log('Team model initialized successfully');
+        console.log('Initializing Match model...');
+        match_1.default.initialize(sequelize);
+        console.log('Match model initialized successfully');
+        console.log('All models initialized successfully');
     }
-    throw error;
-}
+    catch (error) {
+        console.error('Error initializing models:', error);
+        if (error instanceof Error) {
+            console.error('Error message:', error.message);
+            console.error('Error stack:', error.stack);
+        }
+        throw error;
+    }
+};
+initializeModels();

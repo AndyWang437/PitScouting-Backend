@@ -3,6 +3,7 @@ import { sequelize as dbSequelize } from '../db/init';
 import config from '../../config/config';
 import { User } from './user';
 import Team from './team';
+import Match from './match';
 
 const env = process.env.NODE_ENV || 'development';
 const dbConfig = config[env as 'development' | 'test' | 'production'];
@@ -48,23 +49,33 @@ if ('use_env_variable' in dbConfig && dbConfig.use_env_variable) {
   sequelize = dbSequelize;
 }
 
-try {
-  console.log('Initializing User model...');
-  User.initialize(sequelize);
-  console.log('User model initialized successfully');
-  
-  console.log('Initializing Team model...');
-  Team.initialize(sequelize);
-  console.log('Team model initialized successfully');
-  
-  console.log('All models initialized successfully');
-} catch (error) {
-  console.error('Error initializing models:', error);
-  if (error instanceof Error) {
-    console.error('Error message:', error.message);
-    console.error('Error stack:', error.stack);
+// Initialize models without trying to create tables
+// Tables will be created by the setup.ts script
+const initializeModels = () => {
+  try {
+    console.log('Initializing User model...');
+    User.initialize(sequelize);
+    console.log('User model initialized successfully');
+    
+    console.log('Initializing Team model...');
+    Team.initialize(sequelize);
+    console.log('Team model initialized successfully');
+    
+    console.log('Initializing Match model...');
+    Match.initialize(sequelize);
+    console.log('Match model initialized successfully');
+    
+    console.log('All models initialized successfully');
+  } catch (error) {
+    console.error('Error initializing models:', error);
+    if (error instanceof Error) {
+      console.error('Error message:', error.message);
+      console.error('Error stack:', error.stack);
+    }
+    throw error;
   }
-  throw error;
-}
+};
 
-export { sequelize, User, Team }; 
+initializeModels();
+
+export { sequelize, User, Team, Match }; 

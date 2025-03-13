@@ -5,14 +5,36 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.getAllTeams = exports.updateTeam = exports.getTeam = exports.createTeam = void 0;
 const models_1 = require("../models");
-const sequelize_1 = require("sequelize");
 const fs_1 = __importDefault(require("fs"));
 const path_1 = __importDefault(require("path"));
+const init_1 = require("../db/init");
+// Helper function to check if teams table exists
+const checkTeamsTable = async () => {
+    try {
+        const [tables] = await init_1.sequelize.query("SELECT table_name FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'teams'");
+        return tables.length > 0;
+    }
+    catch (error) {
+        console.error('Error checking teams table:', error);
+        return false;
+    }
+};
 const createTeam = async (req, res) => {
     var _a, _b;
     try {
         console.log('Received team data:', JSON.stringify(req.body, null, 2));
         console.log('File:', req.file);
+        // Check if teams table exists
+        const tableExists = await checkTeamsTable();
+        if (!tableExists) {
+            console.error('Teams table does not exist');
+            res.status(500).json({
+                error: 'Database error',
+                message: 'Teams table does not exist',
+                details: 'Please contact the administrator to set up the database'
+            });
+            return;
+        }
         // Validate teamNumber
         if (!req.body.teamNumber) {
             console.error('Team number is missing in request');
@@ -106,46 +128,95 @@ const createTeam = async (req, res) => {
             imageUrl,
         };
         console.log('Processed team data:', JSON.stringify(processedData, null, 2));
-        // Check if team already exists
-        console.log('Checking if team already exists with number:', teamNumber);
+        // Try direct SQL approach if Sequelize fails
         try {
-            const existingTeam = await models_1.Team.findOne({ where: { teamNumber } });
-            if (existingTeam) {
-                console.log('Team exists, updating:', existingTeam.id);
-                // Update existing team
-                await existingTeam.update(processedData);
-                console.log('Team updated successfully:', existingTeam.toJSON());
-                res.status(200).json(existingTeam);
+            // Check if team already exists
+            console.log('Checking if team already exists with number:', teamNumber);
+            // First try with Sequelize
+            try {
+                const existingTeam = await models_1.Team.findOne({ where: { teamNumber } });
+                if (existingTeam) {
+                    console.log('Team exists, updating:', existingTeam.id);
+                    // Update existing team
+                    await existingTeam.update(processedData);
+                    console.log('Team updated successfully:', existingTeam.toJSON());
+                    res.status(200).json(existingTeam);
+                    return;
+                }
+            }
+            catch (sequelizeError) {
+                console.error('Sequelize error finding team:', sequelizeError);
+                // Continue with direct SQL approach
+            }
+            // Try direct SQL approach
+            const [existingTeams] = await init_1.sequelize.query(`SELECT * FROM teams WHERE "teamNumber" = ${teamNumber}`);
+            if (existingTeams.length > 0) {
+                const existingTeam = existingTeams[0];
+                console.log('Team exists (SQL), updating:', existingTeam.id);
+                // Build update query
+                const updateFields = Object.entries(processedData)
+                    .map(([key, value]) => {
+                    if (value === null) {
+                        return `"${key}" = NULL`;
+                    }
+                    else if (Array.isArray(value)) {
+                        return `"${key}" = ARRAY[${value.map(v => `'${v}'`).join(',')}]::text[]`;
+                    }
+                    else if (typeof value === 'string') {
+                        return `"${key}" = '${value.replace(/'/g, "''")}'`;
+                    }
+                    else if (typeof value === 'boolean') {
+                        return `"${key}" = ${value}`;
+                    }
+                    else {
+                        return `"${key}" = ${value}`;
+                    }
+                })
+                    .join(', ');
+                const updateQuery = `
+          UPDATE teams 
+          SET ${updateFields}, "updatedAt" = NOW() 
+          WHERE "teamNumber" = ${teamNumber} 
+          RETURNING *
+        `;
+                const [updatedTeams] = await init_1.sequelize.query(updateQuery);
+                console.log('Team updated successfully (SQL):', updatedTeams[0]);
+                res.status(200).json(updatedTeams[0]);
             }
             else {
                 console.log('Team does not exist, creating new team');
-                // Create new team
-                try {
-                    const team = await models_1.Team.create(processedData);
-                    console.log('Team created successfully:', team.toJSON());
-                    res.status(201).json(team);
-                }
-                catch (dbError) {
-                    console.error('Database error creating team:', dbError);
-                    if (dbError.sql) {
-                        console.error('SQL Query:', dbError.sql);
+                // Build insert query
+                const keys = Object.keys(processedData).map(k => `"${k}"`).join(', ');
+                const values = Object.entries(processedData).map(([_, value]) => {
+                    if (value === null) {
+                        return 'NULL';
                     }
-                    if (dbError.parameters) {
-                        console.error('SQL Parameters:', dbError.parameters);
+                    else if (Array.isArray(value)) {
+                        return `ARRAY[${value.map(v => `'${v}'`).join(',')}]::text[]`;
                     }
-                    if (dbError.parent) {
-                        console.error('Parent error:', dbError.parent);
+                    else if (typeof value === 'string') {
+                        return `'${value.replace(/'/g, "''")}'`;
                     }
-                    throw dbError;
-                }
+                    else if (typeof value === 'boolean') {
+                        return value;
+                    }
+                    else {
+                        return value;
+                    }
+                }).join(', ');
+                const insertQuery = `
+          INSERT INTO teams (${keys}, "createdAt", "updatedAt") 
+          VALUES (${values}, NOW(), NOW()) 
+          RETURNING *
+        `;
+                const [newTeams] = await init_1.sequelize.query(insertQuery);
+                console.log('Team created successfully (SQL):', newTeams[0]);
+                res.status(201).json(newTeams[0]);
             }
         }
-        catch (findError) {
-            console.error('Error finding/updating team:', findError);
-            if (findError.parent) {
-                console.error('Parent error:', findError.parent);
-            }
-            throw findError;
+        catch (sqlError) {
+            console.error('SQL error creating/updating team:', sqlError);
+            throw sqlError;
         }
     }
     catch (error) {
@@ -244,49 +315,63 @@ const getAllTeams = async (req, res) => {
     var _a, _b;
     try {
         console.log('Fetching all teams with query params:', req.query);
-        const { search, drivetrain, endgameType, autoPosition, teleopPreference } = req.query;
-        const where = {};
-        if (search) {
-            where.teamNumber = { [sequelize_1.Op.like]: `%${search}%` };
+        // Check if teams table exists
+        const tableExists = await checkTeamsTable();
+        if (!tableExists) {
+            console.error('Teams table does not exist');
+            res.status(500).json({
+                error: 'Database error',
+                message: 'Teams table does not exist',
+                details: 'Please contact the administrator to set up the database'
+            });
+            return;
         }
-        if (drivetrain) {
-            where.drivetrainType = { [sequelize_1.Op.iLike]: `%${drivetrain}%` };
-        }
-        if (endgameType) {
-            where.endgameType = endgameType;
-        }
-        if (autoPosition) {
-            where.autoStartingPosition = autoPosition;
-        }
-        if (teleopPreference) {
-            where.teleopPreference = teleopPreference;
-        }
-        console.log('Querying teams with where clause:', JSON.stringify(where, null, 2));
+        // Try direct SQL approach
         try {
-            const teams = await models_1.Team.findAll({ where });
+            let query = 'SELECT * FROM teams';
+            const whereConditions = [];
+            // Handle search filters
+            if (req.query.search) {
+                whereConditions.push(`"teamNumber"::text LIKE '%${req.query.search}%'`);
+            }
+            if (req.query.drivetrain) {
+                whereConditions.push(`"drivetrainType" ILIKE '%${req.query.drivetrain}%'`);
+            }
+            if (req.query.endgameType) {
+                whereConditions.push(`"endgameType" = '${req.query.endgameType}'`);
+            }
+            if (req.query.autoPosition) {
+                whereConditions.push(`"autoStartingPosition" = '${req.query.autoPosition}'`);
+            }
+            if (req.query.teleopPreference) {
+                whereConditions.push(`"teleopPreference" = '${req.query.teleopPreference}'`);
+            }
+            if (whereConditions.length > 0) {
+                query += ' WHERE ' + whereConditions.join(' AND ');
+            }
+            console.log('SQL Query:', query);
+            const [teams] = await init_1.sequelize.query(query);
             console.log(`Found ${teams.length} teams`);
             // Verify all image URLs
             for (const team of teams) {
-                if (team.imageUrl) {
-                    const filename = path_1.default.basename(team.imageUrl);
+                const teamRecord = team;
+                if (teamRecord.imageUrl) {
+                    const filename = path_1.default.basename(teamRecord.imageUrl);
                     const uploadsDir = process.env.NODE_ENV === 'production'
                         ? '/opt/render/project/src/uploads'
                         : path_1.default.join(__dirname, '../../uploads');
                     const filePath = path_1.default.join(uploadsDir, filename);
                     if (!fs_1.default.existsSync(filePath)) {
                         console.warn(`Image file not found: ${filePath}`);
-                        team.imageUrl = null;
+                        teamRecord.imageUrl = null;
                     }
                 }
             }
             res.json(teams);
         }
-        catch (findError) {
-            console.error('Error finding teams:', findError);
-            if (findError.parent) {
-                console.error('Parent error:', findError.parent);
-            }
-            throw findError;
+        catch (sqlError) {
+            console.error('SQL error fetching teams:', sqlError);
+            throw sqlError;
         }
     }
     catch (error) {
