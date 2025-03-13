@@ -3,6 +3,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 const sequelize_1 = require("sequelize");
 class Team extends sequelize_1.Model {
     static initialize(sequelize) {
+        console.log('Initializing Team model with sequelize instance');
         this.init({
             id: {
                 type: sequelize_1.DataTypes.INTEGER,
@@ -19,6 +20,10 @@ class Team extends sequelize_1.Model {
                 defaultValue: false,
             },
             autoScoreAlgae: {
+                type: sequelize_1.DataTypes.BOOLEAN,
+                defaultValue: false,
+            },
+            mustStartSpecificPosition: {
                 type: sequelize_1.DataTypes.BOOLEAN,
                 defaultValue: false,
             },
@@ -50,7 +55,8 @@ class Team extends sequelize_1.Model {
                         try {
                             this.setDataValue('coralLevels', JSON.parse(value));
                         }
-                        catch (_a) {
+                        catch (error) {
+                            console.error('Error parsing coralLevels:', error);
                             this.setDataValue('coralLevels', []);
                         }
                     }
@@ -88,21 +94,30 @@ class Team extends sequelize_1.Model {
             },
             notes: {
                 type: sequelize_1.DataTypes.TEXT,
+                defaultValue: '',
                 allowNull: true,
             },
             imageUrl: {
                 type: sequelize_1.DataTypes.STRING,
                 allowNull: true,
             },
-            mustStartSpecificPosition: {
-                type: sequelize_1.DataTypes.BOOLEAN,
-                defaultValue: false,
+            createdAt: {
+                type: sequelize_1.DataTypes.DATE,
+                allowNull: false,
+                defaultValue: sequelize_1.DataTypes.NOW,
+            },
+            updatedAt: {
+                type: sequelize_1.DataTypes.DATE,
+                allowNull: false,
+                defaultValue: sequelize_1.DataTypes.NOW,
             }
         }, {
             sequelize,
             modelName: 'Team',
-            tableName: 'teams'
+            tableName: 'teams',
+            timestamps: true
         });
+        console.log('Team model initialized successfully');
     }
 }
 exports.default = Team;

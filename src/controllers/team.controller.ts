@@ -38,11 +38,24 @@ export const createTeam = async (req: Request, res: Response): Promise<void> => 
       }
     });
 
-    let coralLevels = [];
+    // Handle coralLevels
+    let coralLevels: string[] = [];
     try {
       if (typeof req.body.coralLevels === 'string') {
-        coralLevels = JSON.parse(req.body.coralLevels);
-        console.log('Parsed coralLevels from string:', coralLevels);
+        if (req.body.coralLevels.trim() === '') {
+          coralLevels = [];
+          console.log('Empty coralLevels string, using empty array');
+        } else {
+          try {
+            coralLevels = JSON.parse(req.body.coralLevels);
+            console.log('Parsed coralLevels from string:', coralLevels);
+          } catch (parseError) {
+            console.error('Error parsing coralLevels JSON:', parseError);
+            // If it's not valid JSON, treat it as a single item
+            coralLevels = [req.body.coralLevels];
+            console.log('Using coralLevels as single item:', coralLevels);
+          }
+        }
       } else if (Array.isArray(req.body.coralLevels)) {
         coralLevels = req.body.coralLevels;
         console.log('Using coralLevels array directly:', coralLevels);
@@ -50,7 +63,7 @@ export const createTeam = async (req: Request, res: Response): Promise<void> => 
         console.log('No coralLevels provided, using empty array');
       }
     } catch (error) {
-      console.error('Error parsing coralLevels:', error, 'Value was:', req.body.coralLevels);
+      console.error('Error handling coralLevels:', error, 'Value was:', req.body.coralLevels);
       coralLevels = [];
     }
     
@@ -96,33 +109,41 @@ export const createTeam = async (req: Request, res: Response): Promise<void> => 
 
     // Check if team already exists
     console.log('Checking if team already exists with number:', teamNumber);
-    const existingTeam = await Team.findOne({ where: { teamNumber } });
-    if (existingTeam) {
-      console.log('Team exists, updating:', existingTeam.id);
-      // Update existing team
-      await existingTeam.update(processedData);
-      console.log('Team updated successfully:', existingTeam.toJSON());
-      res.status(200).json(existingTeam);
-    } else {
-      console.log('Team does not exist, creating new team');
-      // Create new team
-      try {
-        const team = await Team.create(processedData);
-        console.log('Team created successfully:', team.toJSON());
-        res.status(201).json(team);
-      } catch (dbError: any) {
-        console.error('Database error:', dbError);
-        if (dbError.sql) {
-          console.error('SQL Query:', dbError.sql);
+    try {
+      const existingTeam = await Team.findOne({ where: { teamNumber } });
+      if (existingTeam) {
+        console.log('Team exists, updating:', existingTeam.id);
+        // Update existing team
+        await existingTeam.update(processedData);
+        console.log('Team updated successfully:', existingTeam.toJSON());
+        res.status(200).json(existingTeam);
+      } else {
+        console.log('Team does not exist, creating new team');
+        // Create new team
+        try {
+          const team = await Team.create(processedData);
+          console.log('Team created successfully:', team.toJSON());
+          res.status(201).json(team);
+        } catch (dbError: any) {
+          console.error('Database error creating team:', dbError);
+          if (dbError.sql) {
+            console.error('SQL Query:', dbError.sql);
+          }
+          if (dbError.parameters) {
+            console.error('SQL Parameters:', dbError.parameters);
+          }
+          if (dbError.parent) {
+            console.error('Parent error:', dbError.parent);
+          }
+          throw dbError;
         }
-        if (dbError.parameters) {
-          console.error('SQL Parameters:', dbError.parameters);
-        }
-        if (dbError.parent) {
-          console.error('Parent error:', dbError.parent);
-        }
-        throw dbError;
       }
+    } catch (findError: any) {
+      console.error('Error finding/updating team:', findError);
+      if (findError.parent) {
+        console.error('Parent error:', findError.parent);
+      }
+      throw findError;
     }
   } catch (error: any) {
     console.error('Error creating team:', error);
@@ -253,26 +274,34 @@ export const getAllTeams = async (req: Request, res: Response): Promise<void> =>
     }
 
     console.log('Querying teams with where clause:', JSON.stringify(where, null, 2));
-    const teams = await Team.findAll({ where });
-    console.log(`Found ${teams.length} teams`);
-    
-    // Verify all image URLs
-    for (const team of teams) {
-      if (team.imageUrl) {
-        const filename = path.basename(team.imageUrl);
-        const uploadsDir = process.env.NODE_ENV === 'production'
-          ? '/opt/render/project/src/uploads'
-          : path.join(__dirname, '../../uploads');
-        const filePath = path.join(uploadsDir, filename);
-        
-        if (!fs.existsSync(filePath)) {
-          console.warn(`Image file not found: ${filePath}`);
-          team.imageUrl = null;
+    try {
+      const teams = await Team.findAll({ where });
+      console.log(`Found ${teams.length} teams`);
+      
+      // Verify all image URLs
+      for (const team of teams) {
+        if (team.imageUrl) {
+          const filename = path.basename(team.imageUrl);
+          const uploadsDir = process.env.NODE_ENV === 'production'
+            ? '/opt/render/project/src/uploads'
+            : path.join(__dirname, '../../uploads');
+          const filePath = path.join(uploadsDir, filename);
+          
+          if (!fs.existsSync(filePath)) {
+            console.warn(`Image file not found: ${filePath}`);
+            team.imageUrl = null;
+          }
         }
       }
+      
+      res.json(teams);
+    } catch (findError: any) {
+      console.error('Error finding teams:', findError);
+      if (findError.parent) {
+        console.error('Parent error:', findError.parent);
+      }
+      throw findError;
     }
-    
-    res.json(teams);
   } catch (error: any) {
     console.error('Error fetching teams:', error);
     console.error('Error details:', error.original || error);

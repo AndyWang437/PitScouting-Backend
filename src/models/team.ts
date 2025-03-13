@@ -5,22 +5,25 @@ class Team extends Model {
   public teamNumber!: number;
   public autoScoreCoral!: boolean;
   public autoScoreAlgae!: boolean;
-  public autoStartingPosition!: string;
+  public mustStartSpecificPosition!: boolean;
+  public autoStartingPosition!: string | null;
   public teleopDealgifying!: boolean;
-  public teleopPreference!: string;
-  public scoringPreference!: string;
+  public teleopPreference!: string | null;
+  public scoringPreference!: string | null;
   public coralLevels!: string[];
   public endgameType!: string;
-  public robotWidth!: number;
-  public robotLength!: number;
-  public robotHeight!: number;
-  public robotWeight!: number;
-  public drivetrainType!: string;
+  public robotWidth!: number | null;
+  public robotLength!: number | null;
+  public robotHeight!: number | null;
+  public robotWeight!: number | null;
+  public drivetrainType!: string | null;
   public notes!: string;
-  public imageUrl!: string;
-  public mustStartSpecificPosition!: boolean;
+  public imageUrl!: string | null;
+  public createdAt!: Date;
+  public updatedAt!: Date;
 
   public static initialize(sequelize: Sequelize) {
+    console.log('Initializing Team model with sequelize instance');
     this.init({
       id: {
         type: DataTypes.INTEGER,
@@ -37,6 +40,10 @@ class Team extends Model {
         defaultValue: false,
       },
       autoScoreAlgae: {
+        type: DataTypes.BOOLEAN,
+        defaultValue: false,
+      },
+      mustStartSpecificPosition: {
         type: DataTypes.BOOLEAN,
         defaultValue: false,
       },
@@ -67,7 +74,8 @@ class Team extends Model {
           if (typeof value === 'string') {
             try {
               this.setDataValue('coralLevels', JSON.parse(value));
-            } catch {
+            } catch (error) {
+              console.error('Error parsing coralLevels:', error);
               this.setDataValue('coralLevels', []);
             }
           } else if (Array.isArray(value)) {
@@ -103,21 +111,31 @@ class Team extends Model {
       },
       notes: {
         type: DataTypes.TEXT,
+        defaultValue: '',
         allowNull: true,
       },
       imageUrl: {
         type: DataTypes.STRING,
         allowNull: true,
       },
-      mustStartSpecificPosition: {
-        type: DataTypes.BOOLEAN,
-        defaultValue: false,
+      createdAt: {
+        type: DataTypes.DATE,
+        allowNull: false,
+        defaultValue: DataTypes.NOW,
+      },
+      updatedAt: {
+        type: DataTypes.DATE,
+        allowNull: false,
+        defaultValue: DataTypes.NOW,
       }
     }, {
       sequelize,
       modelName: 'Team',
-      tableName: 'teams'
+      tableName: 'teams',
+      timestamps: true
     });
+    
+    console.log('Team model initialized successfully');
   }
 }
 

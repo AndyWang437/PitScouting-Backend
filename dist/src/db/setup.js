@@ -15,11 +15,10 @@ const setupDatabase = async () => {
         // Run migrations programmatically
         console.log('Running migrations...');
         try {
-            // This will sync all models with the database
-            // In production, we're not using force: true to avoid data loss
-            console.log('Syncing models with database...');
-            await init_1.sequelize.sync();
-            console.log('Database synced successfully');
+            // Force sync all models with the database to ensure tables are created
+            console.log('Syncing models with database (force: true)...');
+            await init_1.sequelize.sync({ force: true });
+            console.log('Database synced successfully with force: true');
             // List all tables in the database
             try {
                 const [results] = await init_1.sequelize.query("SELECT table_name FROM information_schema.tables WHERE table_schema = 'public'");
@@ -38,26 +37,26 @@ const setupDatabase = async () => {
             throw error;
         }
         // Create admin user if it doesn't exist
-        console.log('Checking for admin user...');
+        console.log('Creating admin user...');
         try {
-            const existingUser = await models_1.User.findOne({
-                where: {
-                    email: '1334admin@gmail.com'
-                }
-            });
-            if (!existingUser) {
-                console.log('Admin user not found, creating...');
-                const hashedPassword = await bcryptjs_1.default.hash('otisit!!!', 10);
-                const user = await models_1.User.create({
+            const hashedPassword = await bcryptjs_1.default.hash('otisit!!!', 10);
+            const [user, created] = await models_1.User.findOrCreate({
+                where: { email: '1334admin@gmail.com' },
+                defaults: {
                     name: 'Admin',
                     email: '1334admin@gmail.com',
                     password: hashedPassword,
                     teamNumber: 1334
-                });
+                }
+            });
+            if (created) {
                 console.log('Admin user created successfully:', user.id);
             }
             else {
-                console.log('Admin user already exists:', existingUser.id);
+                console.log('Admin user already exists:', user.id);
+                // Update password just in case
+                await user.update({ password: hashedPassword });
+                console.log('Admin user password updated');
             }
         }
         catch (error) {
