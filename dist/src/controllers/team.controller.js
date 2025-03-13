@@ -15,6 +15,7 @@ const createTeam = async (req, res) => {
         console.log('File:', req.file);
         // Validate teamNumber
         if (!req.body.teamNumber) {
+            console.error('Team number is missing in request');
             throw new Error('Team number is required');
         }
         // Parse and validate numeric values first
@@ -24,11 +25,13 @@ const createTeam = async (req, res) => {
         const robotHeight = req.body.robotHeight ? parseFloat(req.body.robotHeight) : null;
         const robotWeight = req.body.robotWeight ? parseFloat(req.body.robotWeight) : null;
         if (isNaN(teamNumber)) {
+            console.error('Invalid team number format:', req.body.teamNumber);
             throw new Error('Invalid team number format');
         }
         // Validate numeric values
         [robotWidth, robotLength, robotHeight, robotWeight].forEach((value, index) => {
             if (value !== null && isNaN(value)) {
+                console.error(`Invalid numeric value for ${['width', 'length', 'height', 'weight'][index]}:`, value);
                 throw new Error(`Invalid numeric value for ${['width', 'length', 'height', 'weight'][index]}`);
             }
         });
@@ -36,13 +39,18 @@ const createTeam = async (req, res) => {
         try {
             if (typeof req.body.coralLevels === 'string') {
                 coralLevels = JSON.parse(req.body.coralLevels);
+                console.log('Parsed coralLevels from string:', coralLevels);
             }
             else if (Array.isArray(req.body.coralLevels)) {
                 coralLevels = req.body.coralLevels;
+                console.log('Using coralLevels array directly:', coralLevels);
+            }
+            else {
+                console.log('No coralLevels provided, using empty array');
             }
         }
         catch (error) {
-            console.error('Error parsing coralLevels:', error);
+            console.error('Error parsing coralLevels:', error, 'Value was:', req.body.coralLevels);
             coralLevels = [];
         }
         // Handle boolean values properly
@@ -59,6 +67,9 @@ const createTeam = async (req, res) => {
         if (req.file) {
             imageUrl = `/uploads/${req.file.filename}`;
             console.log('Image URL set to:', imageUrl);
+        }
+        else {
+            console.log('No image file uploaded');
         }
         const processedData = {
             teamNumber,
@@ -81,14 +92,17 @@ const createTeam = async (req, res) => {
         };
         console.log('Processed team data:', JSON.stringify(processedData, null, 2));
         // Check if team already exists
+        console.log('Checking if team already exists with number:', teamNumber);
         const existingTeam = await models_1.Team.findOne({ where: { teamNumber } });
         if (existingTeam) {
+            console.log('Team exists, updating:', existingTeam.id);
             // Update existing team
             await existingTeam.update(processedData);
             console.log('Team updated successfully:', existingTeam.toJSON());
             res.status(200).json(existingTeam);
         }
         else {
+            console.log('Team does not exist, creating new team');
             // Create new team
             try {
                 const team = await models_1.Team.create(processedData);
@@ -102,6 +116,9 @@ const createTeam = async (req, res) => {
                 }
                 if (dbError.parameters) {
                     console.error('SQL Parameters:', dbError.parameters);
+                }
+                if (dbError.parent) {
+                    console.error('Parent error:', dbError.parent);
                 }
                 throw dbError;
             }
@@ -200,7 +217,9 @@ const updateTeam = async (req, res) => {
 };
 exports.updateTeam = updateTeam;
 const getAllTeams = async (req, res) => {
+    var _a, _b;
     try {
+        console.log('Fetching all teams with query params:', req.query);
         const { search, drivetrain, endgameType, autoPosition, teleopPreference } = req.query;
         const where = {};
         if (search) {
@@ -218,7 +237,9 @@ const getAllTeams = async (req, res) => {
         if (teleopPreference) {
             where.teleopPreference = teleopPreference;
         }
+        console.log('Querying teams with where clause:', JSON.stringify(where, null, 2));
         const teams = await models_1.Team.findAll({ where });
+        console.log(`Found ${teams.length} teams`);
         // Verify all image URLs
         for (const team of teams) {
             if (team.imageUrl) {
@@ -237,7 +258,14 @@ const getAllTeams = async (req, res) => {
     }
     catch (error) {
         console.error('Error fetching teams:', error);
-        res.status(400).json({ error: 'Error fetching teams', details: error.message });
+        console.error('Error details:', error.original || error);
+        console.error('Error stack:', error.stack);
+        res.status(400).json({
+            error: 'Error fetching teams',
+            message: error.message,
+            details: ((_a = error.original) === null || _a === void 0 ? void 0 : _a.detail) || ((_b = error.original) === null || _b === void 0 ? void 0 : _b.message) || error.message,
+            stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
+        });
     }
 };
 exports.getAllTeams = getAllTeams;
