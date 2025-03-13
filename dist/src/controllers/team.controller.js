@@ -1,12 +1,18 @@
 "use strict";
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.getAllTeams = exports.updateTeam = exports.getTeam = exports.createTeam = void 0;
 const models_1 = require("../models");
 const sequelize_1 = require("sequelize");
+const fs_1 = __importDefault(require("fs"));
+const path_1 = __importDefault(require("path"));
 const createTeam = async (req, res) => {
     var _a, _b;
     try {
         console.log('Received team data:', JSON.stringify(req.body, null, 2));
+        console.log('File:', req.file);
         // Validate teamNumber
         if (!req.body.teamNumber) {
             throw new Error('Team number is required');
@@ -39,13 +45,28 @@ const createTeam = async (req, res) => {
             console.error('Error parsing coralLevels:', error);
             coralLevels = [];
         }
+        // Handle boolean values properly
+        const parseBooleanField = (value) => {
+            if (typeof value === 'boolean')
+                return value;
+            if (typeof value === 'string') {
+                return value.toLowerCase() === 'true';
+            }
+            return false;
+        };
+        // Properly handle the image URL
+        let imageUrl = null;
+        if (req.file) {
+            imageUrl = `/uploads/${req.file.filename}`;
+            console.log('Image URL set to:', imageUrl);
+        }
         const processedData = {
             teamNumber,
-            autoScoreCoral: req.body.autoScoreCoral === 'true',
-            autoScoreAlgae: req.body.autoScoreAlgae === 'true',
-            mustStartSpecificPosition: req.body.mustStartSpecificPosition === 'true',
+            autoScoreCoral: parseBooleanField(req.body.autoScoreCoral),
+            autoScoreAlgae: parseBooleanField(req.body.autoScoreAlgae),
+            mustStartSpecificPosition: parseBooleanField(req.body.mustStartSpecificPosition),
             autoStartingPosition: req.body.autoStartingPosition || null,
-            teleopDealgifying: req.body.teleopDealgifying === 'true',
+            teleopDealgifying: parseBooleanField(req.body.teleopDealgifying),
             teleopPreference: req.body.teleopPreference || null,
             scoringPreference: req.body.scoringPreference || null,
             coralLevels,
@@ -56,19 +77,34 @@ const createTeam = async (req, res) => {
             robotWeight,
             drivetrainType: req.body.drivetrainType || null,
             notes: req.body.notes || '',
-            imageUrl: req.file ? `/uploads/${req.file.filename}` : null,
+            imageUrl,
         };
         console.log('Processed team data:', JSON.stringify(processedData, null, 2));
-        try {
-            const team = await models_1.Team.create(processedData);
-            console.log('Team created successfully:', team.toJSON());
-            res.status(201).json(team);
+        // Check if team already exists
+        const existingTeam = await models_1.Team.findOne({ where: { teamNumber } });
+        if (existingTeam) {
+            // Update existing team
+            await existingTeam.update(processedData);
+            console.log('Team updated successfully:', existingTeam.toJSON());
+            res.status(200).json(existingTeam);
         }
-        catch (dbError) {
-            console.error('Database error:', dbError);
-            console.error('SQL Query:', dbError.sql);
-            console.error('SQL Parameters:', dbError.parameters);
-            throw dbError;
+        else {
+            // Create new team
+            try {
+                const team = await models_1.Team.create(processedData);
+                console.log('Team created successfully:', team.toJSON());
+                res.status(201).json(team);
+            }
+            catch (dbError) {
+                console.error('Database error:', dbError);
+                if (dbError.sql) {
+                    console.error('SQL Query:', dbError.sql);
+                }
+                if (dbError.parameters) {
+                    console.error('SQL Parameters:', dbError.parameters);
+                }
+                throw dbError;
+            }
         }
     }
     catch (error) {
@@ -98,6 +134,18 @@ const getTeam = async (req, res) => {
             res.status(404).json({ error: 'Team not found' });
             return;
         }
+        // Verify image exists if imageUrl is set
+        if (team.imageUrl) {
+            const filename = path_1.default.basename(team.imageUrl);
+            const uploadsDir = process.env.NODE_ENV === 'production'
+                ? '/opt/render/project/src/uploads'
+                : path_1.default.join(__dirname, '../../uploads');
+            const filePath = path_1.default.join(uploadsDir, filename);
+            if (!fs_1.default.existsSync(filePath)) {
+                console.warn(`Image file not found: ${filePath}`);
+                team.imageUrl = null;
+            }
+        }
         res.json(team);
     }
     catch (error) {
@@ -108,14 +156,41 @@ const getTeam = async (req, res) => {
 exports.getTeam = getTeam;
 const updateTeam = async (req, res) => {
     try {
+        const teamNumber = parseInt(req.params.teamNumber);
+        if (isNaN(teamNumber)) {
+            res.status(400).json({ error: 'Invalid team number' });
+            return;
+        }
         const team = await models_1.Team.findOne({
-            where: { teamNumber: req.params.teamNumber },
+            where: { teamNumber },
         });
         if (!team) {
             res.status(404).json({ error: 'Team not found' });
             return;
         }
-        await team.update(req.body);
+        // Handle image upload if present
+        let updateData = { ...req.body };
+        if (req.file) {
+            updateData.imageUrl = `/uploads/${req.file.filename}`;
+            // Remove old image if it exists
+            if (team.imageUrl) {
+                const oldFilename = path_1.default.basename(team.imageUrl);
+                const uploadsDir = process.env.NODE_ENV === 'production'
+                    ? '/opt/render/project/src/uploads'
+                    : path_1.default.join(__dirname, '../../uploads');
+                const oldFilePath = path_1.default.join(uploadsDir, oldFilename);
+                if (fs_1.default.existsSync(oldFilePath)) {
+                    try {
+                        fs_1.default.unlinkSync(oldFilePath);
+                        console.log(`Deleted old image: ${oldFilePath}`);
+                    }
+                    catch (err) {
+                        console.error(`Failed to delete old image: ${oldFilePath}`, err);
+                    }
+                }
+            }
+        }
+        await team.update(updateData);
         res.json(team);
     }
     catch (error) {
@@ -144,6 +219,20 @@ const getAllTeams = async (req, res) => {
             where.teleopPreference = teleopPreference;
         }
         const teams = await models_1.Team.findAll({ where });
+        // Verify all image URLs
+        for (const team of teams) {
+            if (team.imageUrl) {
+                const filename = path_1.default.basename(team.imageUrl);
+                const uploadsDir = process.env.NODE_ENV === 'production'
+                    ? '/opt/render/project/src/uploads'
+                    : path_1.default.join(__dirname, '../../uploads');
+                const filePath = path_1.default.join(uploadsDir, filename);
+                if (!fs_1.default.existsSync(filePath)) {
+                    console.warn(`Image file not found: ${filePath}`);
+                    team.imageUrl = null;
+                }
+            }
+        }
         res.json(teams);
     }
     catch (error) {

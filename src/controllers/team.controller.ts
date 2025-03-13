@@ -4,10 +4,13 @@ type Response = express.Response;
 type NextFunction = express.NextFunction;
 import { Team } from '../models';
 import { Op } from 'sequelize';
+import fs from 'fs';
+import path from 'path';
 
 export const createTeam = async (req: Request, res: Response): Promise<void> => {
   try {
     console.log('Received team data:', JSON.stringify(req.body, null, 2));
+    console.log('File:', req.file);
     
     // Validate teamNumber
     if (!req.body.teamNumber) {
@@ -44,13 +47,29 @@ export const createTeam = async (req: Request, res: Response): Promise<void> => 
       coralLevels = [];
     }
     
+    // Handle boolean values properly
+    const parseBooleanField = (value: any) => {
+      if (typeof value === 'boolean') return value;
+      if (typeof value === 'string') {
+        return value.toLowerCase() === 'true';
+      }
+      return false;
+    };
+
+    // Properly handle the image URL
+    let imageUrl = null;
+    if (req.file) {
+      imageUrl = `/uploads/${req.file.filename}`;
+      console.log('Image URL set to:', imageUrl);
+    }
+    
     const processedData = {
       teamNumber,
-      autoScoreCoral: req.body.autoScoreCoral === 'true',
-      autoScoreAlgae: req.body.autoScoreAlgae === 'true',
-      mustStartSpecificPosition: req.body.mustStartSpecificPosition === 'true',
+      autoScoreCoral: parseBooleanField(req.body.autoScoreCoral),
+      autoScoreAlgae: parseBooleanField(req.body.autoScoreAlgae),
+      mustStartSpecificPosition: parseBooleanField(req.body.mustStartSpecificPosition),
       autoStartingPosition: req.body.autoStartingPosition || null,
-      teleopDealgifying: req.body.teleopDealgifying === 'true',
+      teleopDealgifying: parseBooleanField(req.body.teleopDealgifying),
       teleopPreference: req.body.teleopPreference || null,
       scoringPreference: req.body.scoringPreference || null,
       coralLevels,
@@ -61,20 +80,34 @@ export const createTeam = async (req: Request, res: Response): Promise<void> => 
       robotWeight,
       drivetrainType: req.body.drivetrainType || null,
       notes: req.body.notes || '',
-      imageUrl: req.file ? `uploads/${req.file.filename}` : null,
+      imageUrl,
     };
 
     console.log('Processed team data:', JSON.stringify(processedData, null, 2));
 
-    try {
-      const team = await Team.create(processedData);
-      console.log('Team created successfully:', team.toJSON());
-      res.status(201).json(team);
-    } catch (dbError: any) {
-      console.error('Database error:', dbError);
-      console.error('SQL Query:', dbError.sql);
-      console.error('SQL Parameters:', dbError.parameters);
-      throw dbError;
+    // Check if team already exists
+    const existingTeam = await Team.findOne({ where: { teamNumber } });
+    if (existingTeam) {
+      // Update existing team
+      await existingTeam.update(processedData);
+      console.log('Team updated successfully:', existingTeam.toJSON());
+      res.status(200).json(existingTeam);
+    } else {
+      // Create new team
+      try {
+        const team = await Team.create(processedData);
+        console.log('Team created successfully:', team.toJSON());
+        res.status(201).json(team);
+      } catch (dbError: any) {
+        console.error('Database error:', dbError);
+        if (dbError.sql) {
+          console.error('SQL Query:', dbError.sql);
+        }
+        if (dbError.parameters) {
+          console.error('SQL Parameters:', dbError.parameters);
+        }
+        throw dbError;
+      }
     }
   } catch (error: any) {
     console.error('Error creating team:', error);
@@ -107,6 +140,20 @@ export const getTeam = async (req: Request, res: Response): Promise<void> => {
       return;
     }
 
+    // Verify image exists if imageUrl is set
+    if (team.imageUrl) {
+      const filename = path.basename(team.imageUrl);
+      const uploadsDir = process.env.NODE_ENV === 'production'
+        ? '/opt/render/project/src/uploads'
+        : path.join(__dirname, '../../uploads');
+      const filePath = path.join(uploadsDir, filename);
+      
+      if (!fs.existsSync(filePath)) {
+        console.warn(`Image file not found: ${filePath}`);
+        team.imageUrl = null;
+      }
+    }
+
     res.json(team);
   } catch (error: any) {
     console.error('Error fetching team:', error);
@@ -116,8 +163,15 @@ export const getTeam = async (req: Request, res: Response): Promise<void> => {
 
 export const updateTeam = async (req: Request, res: Response): Promise<void> => {
   try {
+    const teamNumber = parseInt(req.params.teamNumber);
+    
+    if (isNaN(teamNumber)) {
+      res.status(400).json({ error: 'Invalid team number' });
+      return;
+    }
+
     const team = await Team.findOne({
-      where: { teamNumber: req.params.teamNumber },
+      where: { teamNumber },
     });
 
     if (!team) {
@@ -125,7 +179,31 @@ export const updateTeam = async (req: Request, res: Response): Promise<void> => 
       return;
     }
 
-    await team.update(req.body);
+    // Handle image upload if present
+    let updateData = { ...req.body };
+    if (req.file) {
+      updateData.imageUrl = `/uploads/${req.file.filename}`;
+      
+      // Remove old image if it exists
+      if (team.imageUrl) {
+        const oldFilename = path.basename(team.imageUrl);
+        const uploadsDir = process.env.NODE_ENV === 'production'
+          ? '/opt/render/project/src/uploads'
+          : path.join(__dirname, '../../uploads');
+        const oldFilePath = path.join(uploadsDir, oldFilename);
+        
+        if (fs.existsSync(oldFilePath)) {
+          try {
+            fs.unlinkSync(oldFilePath);
+            console.log(`Deleted old image: ${oldFilePath}`);
+          } catch (err) {
+            console.error(`Failed to delete old image: ${oldFilePath}`, err);
+          }
+        }
+      }
+    }
+
+    await team.update(updateData);
     res.json(team);
   } catch (error: any) {
     console.error('Error updating team:', error);
@@ -159,6 +237,23 @@ export const getAllTeams = async (req: Request, res: Response): Promise<void> =>
     }
 
     const teams = await Team.findAll({ where });
+    
+    // Verify all image URLs
+    for (const team of teams) {
+      if (team.imageUrl) {
+        const filename = path.basename(team.imageUrl);
+        const uploadsDir = process.env.NODE_ENV === 'production'
+          ? '/opt/render/project/src/uploads'
+          : path.join(__dirname, '../../uploads');
+        const filePath = path.join(uploadsDir, filename);
+        
+        if (!fs.existsSync(filePath)) {
+          console.warn(`Image file not found: ${filePath}`);
+          team.imageUrl = null;
+        }
+      }
+    }
+    
     res.json(teams);
   } catch (error: any) {
     console.error('Error fetching teams:', error);
