@@ -46,6 +46,28 @@ async function checkDatabase() {
     
     console.log('Existing tables:', tables);
     
+    // Check table structures
+    for (const table of tables) {
+      const tableName = dialect === 'sqlite' ? table.name : table.table_name;
+      if (tableName && !tableName.startsWith('sqlite_') && tableName !== 'pg_stat_statements') {
+        console.log(`\nChecking structure of table: ${tableName}`);
+        try {
+          const [columns] = await sequelize.query(
+            dialect === 'sqlite'
+              ? `PRAGMA table_info(${tableName})`
+              : `SELECT column_name, data_type, is_nullable FROM information_schema.columns WHERE table_name = '${tableName}'`
+          );
+          console.log(`Columns for ${tableName}:`, columns);
+          
+          // Check for data
+          const [count] = await sequelize.query(`SELECT COUNT(*) as count FROM "${tableName}"`);
+          console.log(`Row count for ${tableName}:`, count);
+        } catch (tableError) {
+          console.error(`Error checking table ${tableName}:`, tableError);
+        }
+      }
+    }
+    
     // Close the connection
     await sequelize.close();
     console.log('Database connection closed');

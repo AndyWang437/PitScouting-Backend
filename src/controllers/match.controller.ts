@@ -233,28 +233,33 @@ export const createMatch = async (req: Request, res: Response): Promise<void> =>
             RETURNING *
           `;
         
-        const [newMatches] = await sequelize.query(insertQuery);
-        if (newMatches && newMatches.length > 0) {
-          console.log('Match created successfully (SQL):', newMatches[0]);
-          res.status(201).json(newMatches[0]);
-        } else {
-          console.log('Match created but no data returned from SQL query');
-          // Fetch the match we just created
-          const [createdMatches] = await sequelize.query(
-            `SELECT * FROM matches WHERE "matchNumber" = ${matchNumber} AND "teamNumber" = ${teamNumber}`
-          );
-          
-          if (createdMatches && createdMatches.length > 0) {
-            console.log('Retrieved created match:', createdMatches[0]);
-            res.status(201).json(createdMatches[0]);
+        try {
+          const [newMatches] = await sequelize.query(insertQuery);
+          if (newMatches && Array.isArray(newMatches) && newMatches.length > 0) {
+            console.log('Match created successfully (SQL):', newMatches[0]);
+            res.status(201).json(newMatches[0]);
           } else {
-            console.error('Failed to retrieve created match');
-            res.status(500).json({ 
-              error: 'Error creating match', 
-              message: 'Match was created but could not be retrieved',
-              details: 'Database operation succeeded but returned no data'
-            });
+            console.log('Match created but no data returned from SQL query');
+            // Fetch the match we just created
+            const [createdMatches] = await sequelize.query(
+              `SELECT * FROM matches WHERE "matchNumber" = ${matchNumber} AND "teamNumber" = ${teamNumber}`
+            );
+            
+            if (createdMatches && Array.isArray(createdMatches) && createdMatches.length > 0) {
+              console.log('Retrieved created match:', createdMatches[0]);
+              res.status(201).json(createdMatches[0]);
+            } else {
+              console.error('Failed to retrieve created match');
+              res.status(500).json({ 
+                error: 'Error creating match', 
+                message: 'Match was created but could not be retrieved',
+                details: 'Database operation succeeded but returned no data'
+              });
+            }
           }
+        } catch (insertError) {
+          console.error('Error executing insert query:', insertError);
+          throw insertError;
         }
       }
     } catch (sqlError) {

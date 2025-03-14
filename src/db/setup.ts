@@ -36,14 +36,47 @@ export const setupDatabase = async () => {
         console.log('Tables already exist in production, skipping table creation');
         
         // Still try to ensure admin user exists
-        await ensureAdminUser();
+        try {
+          await ensureAdminUser();
+          console.log('Admin user check completed successfully');
+        } catch (adminError) {
+          console.error('Error ensuring admin user exists, but continuing:', adminError);
+          // Don't throw here, we want to continue even if admin user creation fails
+        }
         
         console.log('Database setup completed (tables already existed)');
         return;
       }
     } catch (checkError) {
       console.error('Error checking existing tables:', checkError);
-      // Continue with setup anyway
+      // In production, we should be more cautious
+      if (env === 'production') {
+        console.log('In production environment, proceeding with caution');
+        // Try a simpler check for tables
+        try {
+          const [teams] = await sequelize.query("SELECT * FROM teams LIMIT 1");
+          if (teams && teams.length > 0) {
+            console.log('Teams table exists and has data, skipping table creation');
+            
+            // Still try to ensure admin user exists
+            try {
+              await ensureAdminUser();
+              console.log('Admin user check completed successfully');
+            } catch (adminError) {
+              console.error('Error ensuring admin user exists, but continuing:', adminError);
+            }
+            
+            console.log('Database setup completed (tables already existed)');
+            return;
+          }
+        } catch (simpleCheckError) {
+          console.log('Simple table check also failed, will attempt to create tables:', simpleCheckError);
+          // Continue with setup
+        }
+      } else {
+        // Continue with setup anyway in development
+        console.log('In development environment, continuing with table creation');
+      }
     }
     
     // Drop and recreate tables
