@@ -133,6 +133,101 @@ app.get('/test-team/:teamNumber', async (req: Request, res: Response) => {
   }
 });
 
+// Add an endpoint to insert a test team
+app.get('/insert-test-team', async (_req: Request, res: Response) => {
+  try {
+    console.log('Inserting test team with number 1334...');
+    
+    // Check if team 1334 already exists
+    const [existingTeams] = await sequelize.query(
+      `SELECT * FROM teams WHERE "teamNumber" = 1334`
+    );
+    
+    if (existingTeams && existingTeams.length > 0) {
+      console.log('Team 1334 already exists, deleting it first...');
+      await sequelize.query(
+        `DELETE FROM teams WHERE "teamNumber" = 1334`
+      );
+    }
+    
+    // Create test team with direct SQL
+    const coralLevels = JSON.stringify(['Level 1', 'Level 2', 'Level 3']);
+    
+    const insertQuery = `
+      INSERT INTO teams (
+        "teamNumber", 
+        "autoScoreCoral", 
+        "autoScoreAlgae", 
+        "mustStartSpecificPosition", 
+        "autoStartingPosition", 
+        "teleopDealgifying", 
+        "teleopPreference", 
+        "scoringPreference", 
+        "coralLevels", 
+        "endgameType", 
+        "robotWidth", 
+        "robotLength", 
+        "robotHeight", 
+        "robotWeight", 
+        "drivetrainType", 
+        "notes", 
+        "createdAt", 
+        "updatedAt"
+      ) 
+      VALUES (
+        1334, 
+        1, 
+        1, 
+        0, 
+        'Left', 
+        1, 
+        'Scoring', 
+        'High', 
+        '${coralLevels}', 
+        'climb', 
+        30.5, 
+        32.0, 
+        24.0, 
+        120.0, 
+        'Swerve', 
+        'This is a test team for Team 1334 - Red Devils.', 
+        CURRENT_TIMESTAMP, 
+        CURRENT_TIMESTAMP
+      )
+    `;
+    
+    console.log('Executing insert query...');
+    await sequelize.query(insertQuery);
+    
+    // Verify team was created
+    const [teams] = await sequelize.query(
+      `SELECT * FROM teams WHERE "teamNumber" = 1334`
+    );
+    
+    if (teams && teams.length > 0) {
+      console.log('Team 1334 created successfully');
+      res.json({
+        message: 'Test team 1334 created successfully',
+        team: teams[0],
+        timestamp: new Date().toISOString()
+      });
+    } else {
+      console.error('Failed to create team 1334');
+      res.status(500).json({
+        error: 'Failed to create test team',
+        timestamp: new Date().toISOString()
+      });
+    }
+  } catch (error) {
+    console.error('Error creating test team:', error);
+    res.status(500).json({
+      error: 'Error creating test team',
+      details: error instanceof Error ? error.message : String(error),
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
 // Add this function before the app.get('/health') endpoint
 const checkDatabaseTables = async () => {
   try {
@@ -779,6 +874,12 @@ const startServer = async () => {
       console.log('- GET /health (health check)');
       console.log('- GET /db-status (database status)');
       console.log('- POST /setup-database (manually trigger database setup)');
+      console.log('- GET /test (test endpoint)');
+      console.log('- GET /test-team/:teamNumber (test team details)');
+      console.log('- GET /test-page (test HTML page)');
+      console.log('- GET /test-cors (test CORS)');
+      console.log('- GET /test-team-page (test team details page)');
+      console.log('- GET /insert-test-team (insert test team 1334)');
     });
   } catch (error) {
     console.error('Failed to start server:', error);

@@ -31,9 +31,9 @@ export const setupDatabase = async () => {
       );
       console.log('Existing tables before setup:', existingTables);
       
-      // If we're in production and tables already exist, we might want to skip recreation
-      if (env === 'production' && existingTables.length > 3) {  // More than system tables
-        console.log('Tables already exist in production, skipping table creation');
+      // If tables already exist, skip recreation regardless of environment
+      if (existingTables.length > 3) {  // More than system tables
+        console.log('Tables already exist, skipping table creation');
         
         // Still try to ensure admin user exists
         try {
@@ -49,38 +49,31 @@ export const setupDatabase = async () => {
       }
     } catch (checkError) {
       console.error('Error checking existing tables:', checkError);
-      // In production, we should be more cautious
-      if (env === 'production') {
-        console.log('In production environment, proceeding with caution');
-        // Try a simpler check for tables
-        try {
-          const [teams] = await sequelize.query("SELECT * FROM teams LIMIT 1");
-          if (teams && teams.length > 0) {
-            console.log('Teams table exists and has data, skipping table creation');
-            
-            // Still try to ensure admin user exists
-            try {
-              await ensureAdminUser();
-              console.log('Admin user check completed successfully');
-            } catch (adminError) {
-              console.error('Error ensuring admin user exists, but continuing:', adminError);
-            }
-            
-            console.log('Database setup completed (tables already existed)');
-            return;
+      // Try a simpler check for tables
+      try {
+        const [teams] = await sequelize.query("SELECT * FROM teams LIMIT 1");
+        if (teams && teams.length > 0) {
+          console.log('Teams table exists and has data, skipping table creation');
+          
+          // Still try to ensure admin user exists
+          try {
+            await ensureAdminUser();
+            console.log('Admin user check completed successfully');
+          } catch (adminError) {
+            console.error('Error ensuring admin user exists, but continuing:', adminError);
           }
-        } catch (simpleCheckError) {
-          console.log('Simple table check also failed, will attempt to create tables:', simpleCheckError);
-          // Continue with setup
+          
+          console.log('Database setup completed (tables already existed)');
+          return;
         }
-      } else {
-        // Continue with setup anyway in development
-        console.log('In development environment, continuing with table creation');
+      } catch (simpleCheckError) {
+        console.log('Simple table check also failed, will attempt to create tables:', simpleCheckError);
+        // Continue with setup
       }
     }
     
-    // Drop and recreate tables
-    console.log('Dropping and recreating tables...');
+    // Only drop and recreate tables if they don't exist
+    console.log('Tables do not exist, creating them...');
     try {
       // Drop tables if they exist
       if (isSqlite) {

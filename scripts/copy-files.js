@@ -62,6 +62,16 @@ if (fs.existsSync('scripts/direct-db-fix.js')) {
   copyFile('scripts/direct-db-fix.js', 'dist/scripts/direct-db-fix.js');
 }
 
+// Copy create-test-team.js to dist/scripts
+if (fs.existsSync('scripts/create-test-team.js')) {
+  copyFile('scripts/create-test-team.js', 'dist/scripts/create-test-team.js');
+}
+
+// Copy insert-test-team.js to dist/scripts
+if (fs.existsSync('scripts/insert-test-team.js')) {
+  copyFile('scripts/insert-test-team.js', 'dist/scripts/insert-test-team.js');
+}
+
 // Copy .sequelizerc file
 copyFile('.sequelizerc', 'dist/.sequelizerc');
 

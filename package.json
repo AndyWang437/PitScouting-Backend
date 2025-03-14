@@ -15,7 +15,9 @@
     "check-db": "node scripts/check-db.js",
     "fix-db": "node scripts/fix-db.js",
     "postinstall": "npm run build",
-    "direct-fix-db": "node scripts/direct-db-fix.js"
+    "direct-fix-db": "node scripts/direct-db-fix.js",
+    "create-test-team": "node scripts/create-test-team.js",
+    "insert-test-team": "node scripts/insert-test-team.js"
   },
   "engines": {
     "node": ">=18.0.0"
