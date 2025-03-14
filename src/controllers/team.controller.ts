@@ -430,15 +430,14 @@ export const createTeam = async (req: Request, res: Response): Promise<void> => 
   }
 };
 
-export const getTeam = async (req: Request, res: Response): Promise<void> => {
+export const getTeam = async (req: Request, res: Response): Promise<any> => {
   try {
     console.log('getTeam called with params:', req.params);
     const teamNumber = parseInt(req.params.teamNumber);
     
     if (isNaN(teamNumber)) {
       console.error('Invalid team number:', req.params.teamNumber);
-      res.status(400).json({ error: 'Invalid team number' });
-      return;
+      return res.status(400).json({ error: 'Invalid team number' });
     }
     
     console.log('Looking up team with number:', teamNumber);
@@ -458,8 +457,7 @@ export const getTeam = async (req: Request, res: Response): Promise<void> => {
     
     if (!teamsTableExists) {
       console.error('Teams table does not exist');
-      res.status(500).json({ error: 'Teams table does not exist' });
-      return;
+      return res.status(500).json({ error: 'Teams table does not exist' });
     }
     
     // Try direct SQL approach
@@ -469,8 +467,7 @@ export const getTeam = async (req: Request, res: Response): Promise<void> => {
     
     if (!teams || teams.length === 0) {
       console.log('Team not found with number:', teamNumber);
-      res.status(404).json({ error: 'Team not found' });
-      return;
+      return res.status(404).json({ error: 'Team not found' });
     }
     
     const team = teams[0] as any; // Type as any to avoid TypeScript errors
@@ -488,7 +485,7 @@ export const getTeam = async (req: Request, res: Response): Promise<void> => {
             const cleanedString = team.coralLevels
               .replace(/^\{|\}$/g, '') // Remove { and }
               .split(',')
-              .map(item => item.trim().replace(/^"|"$/g, '')); // Remove quotes
+              .map((item: string) => item.trim().replace(/^"|"$/g, '')); // Remove quotes
             
             team.coralLevels = cleanedString;
           } else {
@@ -513,10 +510,10 @@ export const getTeam = async (req: Request, res: Response): Promise<void> => {
     console.log('Team data (JSON):', team);
     console.log('Final team data being sent:', team);
     
-    res.json(team);
+    return res.json(team);
   } catch (error) {
     console.error('Error fetching team:', error);
-    res.status(500).json({ 
+    return res.status(500).json({ 
       error: 'Error fetching team', 
       details: error instanceof Error ? error.message : String(error)
     });

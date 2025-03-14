@@ -1,174 +1,161 @@
-# Deployment Guide for PitScouting App
+# Deployment Guide
 
-This guide provides instructions for deploying the PitScouting app to Render (backend) and Vercel (frontend).
+This guide provides instructions for deploying the PitScouting application to various platforms.
 
-## Known Issues and Fixes
+## Prerequisites
 
-### 1. White Screen on Team Details Page
+- Node.js (v18 or higher)
+- npm (v7 or higher)
+- Git
 
-The white screen on the team details page is caused by the `coralLevels` property being a string instead of an array. The frontend is trying to use `.map()` on this property, causing the error:
+## Deploying to Render
 
-```
-TypeError: e.map is not a function
-```
-
-#### Fix in Frontend:
-
-Add error handling in your TeamDetails.tsx file around line 102:
-
-```tsx
-// Before rendering coralLevels, ensure it's an array
-const coralLevelsArray = Array.isArray(team.coralLevels) 
-  ? team.coralLevels 
-  : typeof team.coralLevels === 'string'
-    ? (
-        // Try to parse the string
-        (() => {
-          try {
-            // Handle PostgreSQL array format
-            if (team.coralLevels.startsWith('{') && team.coralLevels.endsWith('}')) {
-              return team.coralLevels
-                .replace(/^\{|\}$/g, '') // Remove { and }
-                .split(',')
-                .map(item => item.trim().replace(/^"|"$/g, '')); // Remove quotes
-            }
-            // Try standard JSON parse
-            return JSON.parse(team.coralLevels);
-          } catch (e) {
-            console.error('Error parsing coralLevels:', e);
-            return [];
-          }
-        })()
-      )
-    : [];
-
-// Then use coralLevelsArray instead of team.coralLevels in your map function
-{coralLevelsArray.map((level) => (
-  <Chip key={level} label={level} />
-))}
-```
-
-### 2. Image Path Issue
-
-The image paths are currently pointing to `/api/storage/[filename]` but the server is expecting `/uploads/[filename]`.
-
-#### Fix:
-
-We've added routes to handle both paths in the backend. If you still encounter issues, update your frontend to use the correct path:
-
-```tsx
-// Change this:
-<img src={`/api/storage/${team.imageUrl}`} alt="Robot" />
-
-// To this:
-<img src={team.imageUrl} alt="Robot" />
-```
-
-### 3. Error Creating Team
-
-The error message when creating a team is likely due to a validation issue or a missing response handler. The team is still being created successfully.
-
-#### Fix:
-
-Add better error handling in your form submission code:
-
-```tsx
-try {
-  const response = await fetch('/api/teams', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify(teamData),
-  });
-  
-  const data = await response.json();
-  
-  if (!response.ok) {
-    throw new Error(data.error || 'Error creating team');
-  }
-  
-  // Success handling
-  console.log('Team created successfully:', data);
-  // Show success message
-} catch (error) {
-  console.error('Error creating team:', error);
-  // Show error message
-}
-```
-
-## Deployment Instructions
-
-### Backend Deployment to Render
+### Backend Deployment
 
 1. **Create a new Web Service on Render**:
+   - Sign in to your Render account
+   - Click "New" and select "Web Service"
    - Connect your GitHub repository
-   - Select the branch to deploy
-   - Set the build command: `npm install && npm run build`
-   - Set the start command: `npm start`
+   - Select the backend repository
 
-2. **Environment Variables**:
-   - `NODE_ENV=production`
-   - `DATABASE_URL` (Render will provide this if you're using their PostgreSQL service)
-   - `PORT` (Render will set this automatically)
-   - `JWT_SECRET` (for authentication)
+2. **Configure the Web Service**:
+   - Name: `pitscouting-backend`
+   - Environment: `Node`
+   - Build Command: `npm install && npm run build`
+   - Start Command: `npm start`
+   - Select the appropriate plan (Free tier works for testing)
 
-3. **Database Setup**:
-   - Create a PostgreSQL database on Render
-   - The app will automatically set up the tables on first run
+3. **Set Environment Variables**:
+   - Click on "Environment" tab
+   - Add the following environment variables:
+     - `NODE_ENV`: `production`
+     - `PORT`: `10000`
+     - `JWT_SECRET`: (generate a secure random string)
+     - `DATABASE_URL`: (your PostgreSQL connection string if using PostgreSQL)
 
-4. **CORS Configuration**:
-   - Update the CORS configuration in `src/index.ts` to allow your Vercel domain:
+4. **Deploy**:
+   - Click "Create Web Service"
+   - Wait for the build and deployment to complete
 
-```typescript
-app.use(cors({
-  origin: ['https://your-vercel-app.vercel.app', 'http://localhost:3000'],
-  credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'Accept', 'X-Requested-With'],
-  exposedHeaders: ['Content-Range', 'X-Content-Range']
-}));
-```
+### Frontend Deployment
 
-### Frontend Deployment to Vercel
-
-1. **Create a new Project on Vercel**:
+1. **Create a new Static Site on Render**:
+   - Click "New" and select "Static Site"
    - Connect your GitHub repository
-   - Set the framework preset to React
+   - Select the frontend repository
 
-2. **Environment Variables**:
-   - `REACT_APP_API_URL=https://your-render-app.onrender.com` (or whatever your Render URL is)
+2. **Configure the Static Site**:
+   - Name: `pitscouting-frontend`
+   - Build Command: `npm install && npm run build`
+   - Publish Directory: `build` or `dist` (depending on your frontend setup)
 
-3. **Build Settings**:
-   - Build command: `npm run build`
-   - Output directory: `build`
+3. **Set Environment Variables**:
+   - Add the following environment variables:
+     - `REACT_APP_API_URL`: (URL of your backend service, e.g., `https://pitscouting-backend.onrender.com`)
 
-4. **API Configuration**:
-   - Update your API calls to use the environment variable:
+4. **Deploy**:
+   - Click "Create Static Site"
+   - Wait for the build and deployment to complete
 
-```tsx
-const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:10000';
+## Deploying to Vercel
 
-// Use this in your fetch calls
-fetch(`${API_URL}/api/teams`)
-```
+### Backend Deployment
 
-## Post-Deployment Verification
+1. **Create a vercel.json file in your backend repository**:
+   ```json
+   {
+     "version": 2,
+     "builds": [
+       {
+         "src": "dist/index.js",
+         "use": "@vercel/node"
+       }
+     ],
+     "routes": [
+       {
+         "src": "/(.*)",
+         "dest": "dist/index.js"
+       }
+     ]
+   }
+   ```
 
-After deploying, verify the following:
+2. **Deploy to Vercel**:
+   - Install Vercel CLI: `npm install -g vercel`
+   - Run `vercel login` and follow the instructions
+   - Run `vercel` in the backend repository root
+   - Follow the prompts to configure your project
+   - Set the environment variables as needed
 
-1. **API Endpoints**: Test all API endpoints using the `/frontend-debug` tool
-2. **Team Creation**: Create a test team and verify it appears in the database
-3. **Team Details**: Check if team details are displayed correctly
-4. **Image Upload**: Test image upload and verify the images are accessible
+### Frontend Deployment
+
+1. **Deploy to Vercel**:
+   - Run `vercel` in the frontend repository root
+   - Follow the prompts to configure your project
+   - Set the environment variables:
+     - `REACT_APP_API_URL`: (URL of your backend service)
+
+## Database Setup
+
+### Using SQLite (Development)
+
+SQLite is automatically configured for development. The database file will be created in the root directory.
+
+### Using PostgreSQL (Production)
+
+1. **Create a PostgreSQL database**:
+   - You can use services like Render PostgreSQL, Heroku Postgres, or any other PostgreSQL provider
+   - Get the connection string in the format: `postgresql://username:password@host:port/database`
+
+2. **Set the DATABASE_URL environment variable**:
+   - Add the connection string to your deployment platform's environment variables
+
+3. **Run migrations**:
+   - For Render, add a build command: `npm run migrate`
+   - For Vercel, you'll need to run migrations manually or set up a CI/CD pipeline
 
 ## Troubleshooting
 
-If you encounter issues after deployment:
+### Common Issues
 
-1. **Check Logs**: Review the logs in Render and Vercel for error messages
-2. **Database Connection**: Verify the database connection is working
-3. **CORS Issues**: Check for CORS errors in the browser console
-4. **Environment Variables**: Ensure all environment variables are set correctly
+1. **CORS Errors**:
+   - Ensure the backend CORS configuration allows requests from your frontend domain
+   - Check the `cors` configuration in `src/index.ts`
 
-For persistent issues, refer to the `FRONTEND-TROUBLESHOOTING.md` file for more detailed debugging steps. 
+2. **Database Connection Issues**:
+   - Verify your DATABASE_URL is correct
+   - Check if your database service is running
+   - Ensure your IP is allowed in the database firewall settings
+
+3. **TypeScript Build Errors**:
+   - Run `npm run build` locally to check for TypeScript errors
+   - Fix any type errors before deploying
+
+4. **Frontend Connection Issues**:
+   - Verify the API URL in your frontend environment variables
+   - Check browser console for network errors
+   - Ensure the backend is accessible from the frontend
+
+### Fixing Frontend Issues
+
+If you encounter issues with the frontend, particularly with the `coralLevels` property, run the fix script:
+
+```bash
+npm run fix-frontend ../path/to/frontend
+```
+
+This script will automatically fix common issues in the frontend code.
+
+## Monitoring and Logs
+
+- **Render**: Access logs from the "Logs" tab in your service dashboard
+- **Vercel**: Access logs from the "Deployments" section in your project dashboard
+
+## Updating Your Deployment
+
+1. Push changes to your GitHub repository
+2. The deployment platform will automatically rebuild and deploy your application
+
+## Support
+
+If you encounter any issues, please refer to the documentation or create an issue in the GitHub repository. 

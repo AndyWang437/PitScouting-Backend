@@ -1,93 +1,92 @@
 # PitScouting Backend
 
-Backend server for the Team 1334 Scouting App, designed to handle team and match data for robotics competitions.
+Backend for the Team 1334 Scouting App.
 
-## Features
+## TypeScript Error Fixes
 
-- RESTful API for managing teams and matches
-- Authentication system with JWT
-- Support for both SQLite (development) and PostgreSQL (production)
-- File upload for robot images
-- Cross-platform compatibility
+The following TypeScript errors have been fixed:
 
-## Database Configuration
+1. **Syntax Error in `team.model.ts`**:
+   - Fixed syntax errors in the team model file.
+   - Properly defined the TeamAttributes interface and TeamModel.
+   - Added proper getter and setter methods for coralLevels to handle different formats.
 
-The application uses:
-- **SQLite** for development environment
-- **PostgreSQL** for production environment
+2. **Type Errors in `team.controller.ts`**:
+   - Changed return type from `Promise<void>` to `Promise<any>` for controller functions.
+   - Added proper return statements for all response objects.
+   - Added type annotations for map function parameters.
+   - Used type assertion (`as any`) for the team object to avoid TypeScript errors.
 
-The system automatically detects which database to use based on the `NODE_ENV` environment variable.
+## Deployment Instructions
 
-### Array Handling
+### Prerequisites
 
-Special care has been taken to ensure arrays (like `coralLevels`) are handled correctly in both database systems:
+- Node.js (v18 or higher)
+- npm (v7 or higher)
 
-- In **SQLite**: Arrays are stored as JSON strings and parsed when retrieved
-- In **PostgreSQL**: Native array types are used
+### Installation
 
-The models include helper methods like `getCoralLevelsArray()` to ensure consistent array handling across environments.
-
-## Setup and Installation
-
-1. Clone the repository
-2. Install dependencies:
+1. Clone the repository:
+   ```bash
+   git clone https://github.com/your-username/PitScouting-backend.git
+   cd PitScouting-backend
    ```
+
+2. Install dependencies:
+   ```bash
    npm install
    ```
-3. Set up environment variables in `.env` file:
-   ```
-   NODE_ENV=development
-   PORT=3000
-   JWT_SECRET=your_jwt_secret
-   DATABASE_URL=your_postgres_url (for production)
-   ```
-4. Run the development server:
-   ```
-   npm run dev
+
+3. Build the project:
+   ```bash
+   npm run build
    ```
 
-## Scripts
+4. Start the server:
+   ```bash
+   npm start
+   ```
 
-- `npm start` - Start the production server
-- `npm run dev` - Start the development server with hot reloading
-- `npm run build` - Build the TypeScript code
-- `npm run setup-db` - Set up the database tables
-- `npm run test-db` - Test the database configuration and array handling
-- `npm run migrate` - Run database migrations
+### Environment Variables
 
-## Deployment
+Create a `.env` file in the root directory with the following variables:
 
-The application is configured for deployment on Render.com. The `render.yaml` file contains the necessary configuration.
+```
+PORT=10000
+NODE_ENV=production
+DATABASE_URL=your_database_url
+JWT_SECRET=your_jwt_secret
+```
 
-### Production Setup
+### Database Setup
 
-For production deployment:
+The application supports both SQLite and PostgreSQL databases.
 
-1. Set the `NODE_ENV` environment variable to `production`
-2. Provide a valid PostgreSQL `DATABASE_URL` environment variable
-3. The application will automatically use PostgreSQL in production
+- For SQLite (default for development):
+  ```bash
+  npm run setup-db-dev
+  ```
+
+- For PostgreSQL (recommended for production):
+  ```bash
+  npm run migrate
+  ```
 
 ## API Endpoints
 
-### Teams
-
+- `POST /api/auth/login` - User login
+- `POST /api/auth/register` - User registration
 - `GET /api/teams` - Get all teams
-- `GET /api/teams/:teamNumber` - Get a specific team
 - `POST /api/teams` - Create a new team
-- `PUT /api/teams/:teamNumber` - Update a team
-
-### Matches
-
+- `GET /api/teams/:teamNumber` - Get team by number
 - `GET /api/matches` - Get all matches
-- `GET /api/matches/:matchNumber/:teamNumber` - Get a specific match
 - `POST /api/matches` - Create a new match
-- `PUT /api/matches/:matchNumber/:teamNumber` - Update a match
+- `GET /uploads/:filename` - Get uploaded images
 
-### Authentication
+## Troubleshooting
 
-- `POST /api/auth/register` - Register a new user
-- `POST /api/auth/login` - Login and get JWT token
+If you encounter any issues with the frontend, please refer to the `FRONTEND-FIX.md` file for detailed instructions on how to fix common frontend issues.
 
 ## License
 
-This project is licensed under the MIT License. 
+MIT 

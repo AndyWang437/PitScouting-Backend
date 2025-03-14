@@ -100,4 +100,9 @@ if (fs.existsSync('FRONTEND-TROUBLESHOOTING.md')) {
   copyFile('FRONTEND-TROUBLESHOOTING.md', 'dist/FRONTEND-TROUBLESHOOTING.md');
 }
 
+// Copy CHANGES-SUMMARY.md file
+if (fs.existsSync('CHANGES-SUMMARY.md')) {
+  copyFile('CHANGES-SUMMARY.md', 'dist/CHANGES-SUMMARY.md');
+}
+
 console.log('All files copied successfully!'); 
