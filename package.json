@@ -17,7 +17,8 @@
     "postinstall": "npm run build",
     "direct-fix-db": "node scripts/direct-db-fix.js",
     "create-test-team": "node scripts/create-test-team.js",
-    "insert-test-team": "node scripts/insert-test-team.js"
+    "insert-test-team": "node scripts/insert-test-team.js",
+    "diagnose-frontend": "node scripts/fix-frontend-issues.js"
   },
   "engines": {
     "node": ">=18.0.0"

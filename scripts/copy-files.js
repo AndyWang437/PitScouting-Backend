@@ -72,12 +72,22 @@ if (fs.existsSync('scripts/insert-test-team.js')) {
   copyFile('scripts/insert-test-team.js', 'dist/scripts/insert-test-team.js');
 }
 
+// Copy fix-frontend-issues.js to dist/scripts
+if (fs.existsSync('scripts/fix-frontend-issues.js')) {
+  copyFile('scripts/fix-frontend-issues.js', 'dist/scripts/fix-frontend-issues.js');
+}
+
 // Copy .sequelizerc file
 copyFile('.sequelizerc', 'dist/.sequelizerc');
 
 // Copy README.md file
 if (fs.existsSync('README.md')) {
   copyFile('README.md', 'dist/README.md');
+}
+
+// Copy FRONTEND-TROUBLESHOOTING.md file
+if (fs.existsSync('FRONTEND-TROUBLESHOOTING.md')) {
+  copyFile('FRONTEND-TROUBLESHOOTING.md', 'dist/FRONTEND-TROUBLESHOOTING.md');
 }
 
 console.log('All files copied successfully!'); 

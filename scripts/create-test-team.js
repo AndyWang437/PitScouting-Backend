@@ -2,172 +2,97 @@ const { Sequelize } = require('sequelize');
 const path = require('path');
 const fs = require('fs');
 
+// Determine environment
+const isProduction = process.env.NODE_ENV === 'production';
+console.log(`Environment: ${isProduction ? 'production' : 'development'}`);
+
+// Database configuration
+let sequelize;
+if (isProduction) {
+  // Production database (PostgreSQL)
+  const dbUrl = process.env.DATABASE_URL;
+  console.log(`Using production database URL: ${dbUrl}`);
+  
+  sequelize = new Sequelize(dbUrl, {
+    dialect: 'postgres',
+    dialectOptions: {
+      ssl: {
+        require: true,
+        rejectUnauthorized: false
+      }
+    },
+    logging: false
+  });
+} else {
+  // Development database (SQLite)
+  const dbPath = path.join(process.cwd(), 'database.sqlite');
+  console.log(`Using development database at: ${dbPath}`);
+  
+  sequelize = new Sequelize({
+    dialect: 'sqlite',
+    storage: dbPath,
+    logging: false
+  });
+}
+
 async function createTestTeam() {
-  console.log('Creating test team with number 1334...');
-  
-  // Determine environment and database configuration
-  const isProduction = process.env.NODE_ENV === 'production';
-  const dbUrl = process.env.DATABASE_URL || 'sqlite:./database.sqlite';
-  
-  console.log(`Environment: ${isProduction ? 'production' : 'development'}`);
-  console.log(`Database URL: ${dbUrl.substring(0, 20)}...`);
-  
-  // Create Sequelize instance
-  let sequelize;
-  
-  if (isProduction && dbUrl.startsWith('postgres')) {
-    // Production PostgreSQL configuration
-    sequelize = new Sequelize(dbUrl, {
-      dialect: 'postgres',
-      dialectOptions: {
-        ssl: {
-          require: true,
-          rejectUnauthorized: false
-        }
-      },
-      logging: false
-    });
-  } else {
-    // Development SQLite configuration
-    sequelize = new Sequelize(dbUrl, {
-      logging: false
-    });
-  }
-  
   try {
     // Test database connection
     await sequelize.authenticate();
     console.log('Database connection established successfully.');
     
     // Check if teams table exists
-    const dialect = sequelize.getDialect();
-    const [tables] = await sequelize.query(
-      dialect === 'sqlite' 
-        ? "SELECT name FROM sqlite_master WHERE type='table' AND name='teams'"
-        : "SELECT table_name FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'teams'"
+    const tables = await sequelize.query(
+      "SELECT name FROM sqlite_master WHERE type='table' AND name='teams'",
+      { type: sequelize.QueryTypes.SELECT }
     );
     
-    const tableExists = tables.length > 0;
-    console.log('Teams table exists:', tableExists);
+    const teamsTableExists = tables.length > 0;
+    console.log(`Teams table exists: ${teamsTableExists}`);
     
-    if (!tableExists) {
+    if (!teamsTableExists) {
       console.error('Teams table does not exist. Please run database setup first.');
-      process.exit(1);
+      return;
     }
     
     // Check if team 1334 already exists
-    const [existingTeams] = await sequelize.query(
-      `SELECT * FROM teams WHERE "teamNumber" = 1334`
+    const existingTeam = await sequelize.query(
+      "SELECT * FROM teams WHERE teamNumber = 1334",
+      { type: sequelize.QueryTypes.SELECT }
     );
     
-    if (existingTeams && existingTeams.length > 0) {
-      console.log('Team 1334 already exists:', existingTeams[0]);
-      process.exit(0);
+    if (existingTeam.length > 0) {
+      console.log('Team 1334 already exists in the database.');
+      return;
     }
     
     // Create test team
-    const isSqlite = dialect === 'sqlite';
-    const coralLevels = JSON.stringify(['Level 1', 'Level 2', 'Level 3']);
+    const insertQuery = `
+      INSERT INTO teams (
+        teamNumber, autoScoreCoral, autoScoreAlgae, mustStartSpecificPosition, 
+        autoStartingPosition, teleopDealgifying, teleopPreference, 
+        scoringPreference, coralLevels, endgameType, robotWidth, 
+        robotLength, robotHeight, robotWeight, drivetrainType, notes,
+        createdAt, updatedAt
+      ) VALUES (
+        1334, 1, 1, 0, 
+        'Middle', 1, 'Coral', 
+        'High', '[1, 2, 3]', 'Climb', 30, 
+        30, 30, 120, 'Tank', 'This is a test team created for debugging purposes.',
+        datetime('now'), datetime('now')
+      )
+    `;
     
-    const insertQuery = isSqlite
-      ? `
-        INSERT INTO teams (
-          "teamNumber", 
-          "autoScoreCoral", 
-          "autoScoreAlgae", 
-          "mustStartSpecificPosition", 
-          "autoStartingPosition", 
-          "teleopDealgifying", 
-          "teleopPreference", 
-          "scoringPreference", 
-          "coralLevels", 
-          "endgameType", 
-          "robotWidth", 
-          "robotLength", 
-          "robotHeight", 
-          "robotWeight", 
-          "drivetrainType", 
-          "notes", 
-          "createdAt", 
-          "updatedAt"
-        ) 
-        VALUES (
-          1334, 
-          1, 
-          1, 
-          0, 
-          'Left', 
-          1, 
-          'Scoring', 
-          'High', 
-          '${coralLevels}', 
-          'climb', 
-          30.5, 
-          32.0, 
-          24.0, 
-          120.0, 
-          'Swerve', 
-          'This is a test team for Team 1334 - Red Devils.', 
-          CURRENT_TIMESTAMP, 
-          CURRENT_TIMESTAMP
-        )
-      `
-      : `
-        INSERT INTO teams (
-          "teamNumber", 
-          "autoScoreCoral", 
-          "autoScoreAlgae", 
-          "mustStartSpecificPosition", 
-          "autoStartingPosition", 
-          "teleopDealgifying", 
-          "teleopPreference", 
-          "scoringPreference", 
-          "coralLevels", 
-          "endgameType", 
-          "robotWidth", 
-          "robotLength", 
-          "robotHeight", 
-          "robotWeight", 
-          "drivetrainType", 
-          "notes", 
-          "createdAt", 
-          "updatedAt"
-        ) 
-        VALUES (
-          1334, 
-          true, 
-          true, 
-          false, 
-          'Left', 
-          true, 
-          'Scoring', 
-          'High', 
-          '${coralLevels}', 
-          'climb', 
-          30.5, 
-          32.0, 
-          24.0, 
-          120.0, 
-          'Swerve', 
-          'This is a test team for Team 1334 - Red Devils.', 
-          NOW(), 
-          NOW()
-        )
-      `;
-    
-    console.log('Executing insert query...');
     await sequelize.query(insertQuery);
+    console.log('Test team 1334 created successfully!');
     
     // Verify team was created
-    const [teams] = await sequelize.query(
-      `SELECT * FROM teams WHERE "teamNumber" = 1334`
+    const team = await sequelize.query(
+      "SELECT * FROM teams WHERE teamNumber = 1334",
+      { type: sequelize.QueryTypes.SELECT }
     );
     
-    if (teams && teams.length > 0) {
-      console.log('Team 1334 created successfully:', teams[0]);
-    } else {
-      console.error('Failed to create team 1334');
-    }
+    console.log('Team created:', team[0]);
     
   } catch (error) {
     console.error('Error creating test team:', error);
@@ -176,10 +101,4 @@ async function createTestTeam() {
   }
 }
 
-createTestTeam()
-  .then(() => {
-    console.log('Script completed');
-  })
-  .catch(error => {
-    console.error('Script failed:', error);
-  }); 
+createTestTeam(); 
