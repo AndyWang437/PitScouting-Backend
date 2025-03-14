@@ -52,6 +52,11 @@ if (fs.existsSync('scripts/check-db.js')) {
   copyFile('scripts/check-db.js', 'dist/scripts/check-db.js');
 }
 
+// Copy fix-db.js to dist/scripts
+if (fs.existsSync('scripts/fix-db.js')) {
+  copyFile('scripts/fix-db.js', 'dist/scripts/fix-db.js');
+}
+
 // Copy .sequelizerc file
 copyFile('.sequelizerc', 'dist/.sequelizerc');
 

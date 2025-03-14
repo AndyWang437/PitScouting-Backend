@@ -88,40 +88,45 @@ app.get('/db-status', async (_req: Request, res: Response) => {
     await sequelize.authenticate();
     
     // Check if tables exist
-    const [tables] = await sequelize.query("SELECT table_name FROM information_schema.tables WHERE table_schema = 'public'");
-    const tableNames = tables.map((t: any) => t.table_name);
+    const dialect = sequelize.getDialect();
+    const [tables] = await sequelize.query(
+      dialect === 'sqlite' 
+        ? "SELECT name FROM sqlite_master WHERE type='table'"
+        : "SELECT table_name FROM information_schema.tables WHERE table_schema = 'public'"
+    );
     
     // Check if teams table exists and has the right structure
     let teamsTableInfo = [];
-    if (tableNames.includes('teams')) {
+    if (tables.includes('teams')) {
       const [columns] = await sequelize.query("SELECT column_name, data_type FROM information_schema.columns WHERE table_name = 'teams'");
       teamsTableInfo = columns;
     }
     
     // Check if matches table exists and has the right structure
     let matchesTableInfo = [];
-    if (tableNames.includes('matches')) {
+    if (tables.includes('matches')) {
       const [columns] = await sequelize.query("SELECT column_name, data_type FROM information_schema.columns WHERE table_name = 'matches'");
       matchesTableInfo = columns;
     }
     
     // Check if users table exists and has the right structure
     let usersTableInfo = [];
-    if (tableNames.includes('users')) {
+    if (tables.includes('users')) {
       const [columns] = await sequelize.query("SELECT column_name, data_type FROM information_schema.columns WHERE table_name = 'users'");
       usersTableInfo = columns;
     }
     
     // Check if admin user exists
     let adminUserExists = false;
-    if (tableNames.includes('users')) {
+    if (tables.includes('users')) {
       const [users] = await sequelize.query("SELECT * FROM users WHERE email = '1334admin@gmail.com'");
       adminUserExists = users.length > 0;
     }
     
     res.json({ 
       status: 'connected',
-      tables: tableNames,
+      dialect: dialect,
+      tables: tables,
       teamsTableInfo,
       matchesTableInfo,
       usersTableInfo,
@@ -133,6 +138,7 @@ app.get('/db-status', async (_req: Request, res: Response) => {
     res.status(500).json({ 
       status: 'error',
       message: error instanceof Error ? error.message : 'Unknown error',
+      dialect: sequelize.getDialect(),
       timestamp: new Date().toISOString(),
       databaseUrl: process.env.DATABASE_URL ? `${process.env.DATABASE_URL.substring(0, 25)}...` : 'Not set'
     });
@@ -164,6 +170,93 @@ app.use('/api/auth', authRoutes);
 app.use('/api/teams', teamRoutes);
 app.use('/api/matches', matchRoutes);
 
+// Function to check if tables exist
+async function checkTablesExist() {
+  try {
+    const dialect = sequelize.getDialect();
+    const [tables] = await sequelize.query(
+      dialect === 'sqlite' 
+        ? "SELECT name FROM sqlite_master WHERE type='table' AND name='teams'"
+        : "SELECT table_name FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'teams'"
+    );
+    
+    return tables && tables.length > 0;
+  } catch (error) {
+    console.error('Error checking if tables exist:', error);
+    return false;
+  }
+}
+
+// Function to create tables directly with SQL
+async function createTablesDirectly() {
+  console.log('Creating tables directly with SQL...');
+  try {
+    if (sequelize.getDialect() === 'postgres') {
+      await sequelize.query(`
+        CREATE TABLE IF NOT EXISTS teams (
+          id SERIAL PRIMARY KEY,
+          "teamNumber" INTEGER NOT NULL UNIQUE,
+          "autoScoreCoral" BOOLEAN DEFAULT false,
+          "autoScoreAlgae" BOOLEAN DEFAULT false,
+          "mustStartSpecificPosition" BOOLEAN DEFAULT false,
+          "autoStartingPosition" VARCHAR(255),
+          "teleopDealgifying" BOOLEAN DEFAULT false,
+          "teleopPreference" VARCHAR(255),
+          "scoringPreference" VARCHAR(255),
+          "coralLevels" TEXT[] DEFAULT '{}',
+          "endgameType" VARCHAR(255) DEFAULT 'none',
+          "robotWidth" FLOAT,
+          "robotLength" FLOAT,
+          "robotHeight" FLOAT,
+          "robotWeight" FLOAT,
+          "drivetrainType" VARCHAR(255),
+          "notes" TEXT DEFAULT '',
+          "imageUrl" VARCHAR(255),
+          "createdAt" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+          "updatedAt" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
+        );
+        
+        CREATE TABLE IF NOT EXISTS matches (
+          id SERIAL PRIMARY KEY,
+          "matchNumber" INTEGER NOT NULL,
+          "teamNumber" INTEGER NOT NULL,
+          "autoScoreCoral" BOOLEAN DEFAULT false,
+          "autoScoreAlgae" BOOLEAN DEFAULT false,
+          "autoStartingPosition" VARCHAR(255),
+          "teleopDealgifying" BOOLEAN DEFAULT false,
+          "teleopPreference" VARCHAR(255),
+          "scoringPreference" VARCHAR(255),
+          "coralLevels" TEXT[] DEFAULT '{}',
+          "endgameType" VARCHAR(255) DEFAULT 'none',
+          "notes" TEXT DEFAULT '',
+          "createdAt" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+          "updatedAt" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+          UNIQUE("matchNumber", "teamNumber")
+        );
+        
+        CREATE TABLE IF NOT EXISTS users (
+          id SERIAL PRIMARY KEY,
+          name VARCHAR(255) NOT NULL,
+          email VARCHAR(255) NOT NULL UNIQUE,
+          password VARCHAR(255) NOT NULL,
+          "teamNumber" INTEGER NOT NULL,
+          "createdAt" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+          "updatedAt" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
+        );
+      `);
+      
+      console.log('Tables created with direct SQL approach');
+      return true;
+    } else {
+      console.log('Not using PostgreSQL, skipping direct table creation');
+      return false;
+    }
+  } catch (error) {
+    console.error('Error creating tables with direct SQL:', error);
+    return false;
+  }
+}
+
 const startServer = async () => {
   try {
     console.log('Initializing database...');
@@ -173,6 +266,45 @@ const startServer = async () => {
     console.log('Setting up database (creating tables and admin user)...');
     await setupDatabase();
     console.log('Database setup completed successfully');
+    
+    // Verify tables exist
+    const tablesExist = await checkTablesExist();
+    if (!tablesExist) {
+      console.error('Tables do not exist after setup! Attempting to create tables again...');
+      
+      // Try one more time with setupDatabase
+      try {
+        console.log('Retrying database setup...');
+        await setupDatabase();
+        console.log('Database setup retry completed');
+        
+        // Check again
+        const tablesExistAfterRetry = await checkTablesExist();
+        if (!tablesExistAfterRetry) {
+          console.error('Tables still do not exist after retry! Attempting direct SQL approach...');
+          
+          // Try direct SQL approach
+          const directSuccess = await createTablesDirectly();
+          if (directSuccess) {
+            console.log('Tables created successfully with direct SQL approach');
+          } else {
+            console.error('CRITICAL: Failed to create tables with direct SQL approach!');
+          }
+        } else {
+          console.log('Tables created successfully after retry');
+        }
+      } catch (retryError) {
+        console.error('Error during database setup retry:', retryError);
+        
+        // Try direct SQL approach as last resort
+        const directSuccess = await createTablesDirectly();
+        if (directSuccess) {
+          console.log('Tables created successfully with direct SQL approach after retry error');
+        } else {
+          console.error('CRITICAL: Failed to create tables with any method!');
+        }
+      }
+    }
     
     console.log('Starting server...');
     app.listen(port, '0.0.0.0', () => {

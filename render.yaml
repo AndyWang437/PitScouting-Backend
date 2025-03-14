@@ -3,7 +3,7 @@ services:
     name: pit-scouting-backend
     env: node
     buildCommand: npm install
-    startCommand: npm run setup-db && npm start
+    startCommand: npm run fix-db && npm run setup-db && npm start
     envVars:
       - key: NODE_ENV
         value: production
