@@ -11,7 +11,9 @@ const init_1 = require("../db/init");
 // Helper function to check if teams table exists
 const checkTeamsTable = async () => {
     try {
-        const [tables] = await init_1.sequelize.query("SELECT table_name FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'teams'");
+        const [tables] = await init_1.sequelize.query(init_1.sequelize.getDialect() === 'sqlite'
+            ? "SELECT name FROM sqlite_master WHERE type='table' AND name='teams'"
+            : "SELECT table_name FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'teams'");
         return tables.length > 0;
     }
     catch (error) {
@@ -128,7 +130,7 @@ const createTeam = async (req, res) => {
             imageUrl,
         };
         console.log('Processed team data:', JSON.stringify(processedData, null, 2));
-        // Try direct SQL approach if Sequelize fails
+        // Try direct SQL approach
         try {
             // Check if team already exists
             console.log('Checking if team already exists with number:', teamNumber);
@@ -149,6 +151,7 @@ const createTeam = async (req, res) => {
                 // Continue with direct SQL approach
             }
             // Try direct SQL approach
+            const isSqlite = init_1.sequelize.getDialect() === 'sqlite';
             const [existingTeams] = await init_1.sequelize.query(`SELECT * FROM teams WHERE "teamNumber" = ${teamNumber}`);
             if (existingTeams.length > 0) {
                 const existingTeam = existingTeams[0];
@@ -160,25 +163,37 @@ const createTeam = async (req, res) => {
                         return `"${key}" = NULL`;
                     }
                     else if (Array.isArray(value)) {
-                        return `"${key}" = ARRAY[${value.map(v => `'${v}'`).join(',')}]::text[]`;
+                        if (isSqlite) {
+                            return `"${key}" = '${JSON.stringify(value)}'`;
+                        }
+                        else {
+                            return `"${key}" = ARRAY[${value.map(v => `'${v}'`).join(',')}]::text[]`;
+                        }
                     }
                     else if (typeof value === 'string') {
                         return `"${key}" = '${value.replace(/'/g, "''")}'`;
                     }
                     else if (typeof value === 'boolean') {
-                        return `"${key}" = ${value}`;
+                        return `"${key}" = ${isSqlite ? (value ? 1 : 0) : value}`;
                     }
                     else {
                         return `"${key}" = ${value}`;
                     }
                 })
                     .join(', ');
-                const updateQuery = `
-          UPDATE teams 
-          SET ${updateFields}, "updatedAt" = NOW() 
-          WHERE "teamNumber" = ${teamNumber} 
-          RETURNING *
-        `;
+                const updateQuery = isSqlite
+                    ? `
+            UPDATE teams 
+            SET ${updateFields}, "updatedAt" = CURRENT_TIMESTAMP 
+            WHERE "teamNumber" = ${teamNumber} 
+            RETURNING *
+          `
+                    : `
+            UPDATE teams 
+            SET ${updateFields}, "updatedAt" = NOW() 
+            WHERE "teamNumber" = ${teamNumber} 
+            RETURNING *
+          `;
                 const [updatedTeams] = await init_1.sequelize.query(updateQuery);
                 console.log('Team updated successfully (SQL):', updatedTeams[0]);
                 res.status(200).json(updatedTeams[0]);
@@ -192,23 +207,34 @@ const createTeam = async (req, res) => {
                         return 'NULL';
                     }
                     else if (Array.isArray(value)) {
-                        return `ARRAY[${value.map(v => `'${v}'`).join(',')}]::text[]`;
+                        if (isSqlite) {
+                            return `'${JSON.stringify(value)}'`;
+                        }
+                        else {
+                            return `ARRAY[${value.map(v => `'${v}'`).join(',')}]::text[]`;
+                        }
                     }
                     else if (typeof value === 'string') {
                         return `'${value.replace(/'/g, "''")}'`;
                     }
                     else if (typeof value === 'boolean') {
-                        return value;
+                        return isSqlite ? (value ? 1 : 0) : value;
                     }
                     else {
                         return value;
                     }
                 }).join(', ');
-                const insertQuery = `
-          INSERT INTO teams (${keys}, "createdAt", "updatedAt") 
-          VALUES (${values}, NOW(), NOW()) 
-          RETURNING *
-        `;
+                const insertQuery = isSqlite
+                    ? `
+            INSERT INTO teams (${keys}, "createdAt", "updatedAt") 
+            VALUES (${values}, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP) 
+            RETURNING *
+          `
+                    : `
+            INSERT INTO teams (${keys}, "createdAt", "updatedAt") 
+            VALUES (${values}, NOW(), NOW()) 
+            RETURNING *
+          `;
                 const [newTeams] = await init_1.sequelize.query(insertQuery);
                 console.log('Team created successfully (SQL):', newTeams[0]);
                 res.status(201).json(newTeams[0]);
@@ -239,26 +265,64 @@ const getTeam = async (req, res) => {
             res.status(400).json({ error: 'Invalid team number' });
             return;
         }
-        const team = await models_1.Team.findOne({
-            where: { teamNumber },
-        });
-        if (!team) {
-            res.status(404).json({ error: 'Team not found' });
-            return;
-        }
-        // Verify image exists if imageUrl is set
-        if (team.imageUrl) {
-            const filename = path_1.default.basename(team.imageUrl);
-            const uploadsDir = process.env.NODE_ENV === 'production'
-                ? '/opt/render/project/src/uploads'
-                : path_1.default.join(__dirname, '../../uploads');
-            const filePath = path_1.default.join(uploadsDir, filename);
-            if (!fs_1.default.existsSync(filePath)) {
-                console.warn(`Image file not found: ${filePath}`);
-                team.imageUrl = null;
+        // Try direct SQL approach
+        try {
+            const isSqlite = init_1.sequelize.getDialect() === 'sqlite';
+            const [teams] = await init_1.sequelize.query(`SELECT * FROM teams WHERE "teamNumber" = ${teamNumber}`);
+            if (teams.length === 0) {
+                res.status(404).json({ error: 'Team not found' });
+                return;
             }
+            const team = teams[0];
+            // Parse coralLevels if it's a string (SQLite)
+            if (isSqlite && typeof team.coralLevels === 'string') {
+                try {
+                    team.coralLevels = JSON.parse(team.coralLevels);
+                    console.log('Parsed coralLevels from SQLite:', team.coralLevels);
+                }
+                catch (parseError) {
+                    console.error('Error parsing coralLevels from SQLite:', parseError);
+                    team.coralLevels = [];
+                }
+            }
+            // Verify image exists if imageUrl is set
+            if (team.imageUrl) {
+                const filename = path_1.default.basename(team.imageUrl);
+                const uploadsDir = process.env.NODE_ENV === 'production'
+                    ? '/opt/render/project/src/uploads'
+                    : path_1.default.join(__dirname, '../../uploads');
+                const filePath = path_1.default.join(uploadsDir, filename);
+                if (!fs_1.default.existsSync(filePath)) {
+                    console.warn(`Image file not found: ${filePath}`);
+                    team.imageUrl = null;
+                }
+            }
+            res.json(team);
         }
-        res.json(team);
+        catch (sqlError) {
+            console.error('SQL error fetching team:', sqlError);
+            // Fall back to Sequelize
+            const team = await models_1.Team.findOne({
+                where: { teamNumber },
+            });
+            if (!team) {
+                res.status(404).json({ error: 'Team not found' });
+                return;
+            }
+            // Verify image exists if imageUrl is set
+            if (team.imageUrl) {
+                const filename = path_1.default.basename(team.imageUrl);
+                const uploadsDir = process.env.NODE_ENV === 'production'
+                    ? '/opt/render/project/src/uploads'
+                    : path_1.default.join(__dirname, '../../uploads');
+                const filePath = path_1.default.join(uploadsDir, filename);
+                if (!fs_1.default.existsSync(filePath)) {
+                    console.warn(`Image file not found: ${filePath}`);
+                    team.imageUrl = null;
+                }
+            }
+            res.json(team);
+        }
     }
     catch (error) {
         console.error('Error fetching team:', error);
@@ -352,9 +416,22 @@ const getAllTeams = async (req, res) => {
             console.log('SQL Query:', query);
             const [teams] = await init_1.sequelize.query(query);
             console.log(`Found ${teams.length} teams`);
-            // Verify all image URLs
+            const isSqlite = init_1.sequelize.getDialect() === 'sqlite';
+            // Process each team
             for (const team of teams) {
                 const teamRecord = team;
+                // Parse coralLevels if it's a string (SQLite)
+                if (isSqlite && typeof teamRecord.coralLevels === 'string') {
+                    try {
+                        teamRecord.coralLevels = JSON.parse(teamRecord.coralLevels);
+                        console.log(`Parsed coralLevels for team ${teamRecord.teamNumber}:`, teamRecord.coralLevels);
+                    }
+                    catch (parseError) {
+                        console.error(`Error parsing coralLevels for team ${teamRecord.teamNumber}:`, parseError);
+                        teamRecord.coralLevels = [];
+                    }
+                }
+                // Verify image exists
                 if (teamRecord.imageUrl) {
                     const filename = path_1.default.basename(teamRecord.imageUrl);
                     const uploadsDir = process.env.NODE_ENV === 'production'

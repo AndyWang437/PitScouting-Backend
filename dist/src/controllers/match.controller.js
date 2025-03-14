@@ -1,12 +1,14 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.getAllMatches = exports.createMatch = void 0;
+exports.getAllMatches = exports.getMatch = exports.createMatch = void 0;
 const models_1 = require("../models");
 const init_1 = require("../db/init");
 // Helper function to check if matches table exists
 const checkMatchesTable = async () => {
     try {
-        const [tables] = await init_1.sequelize.query("SELECT table_name FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'matches'");
+        const [tables] = await init_1.sequelize.query(init_1.sequelize.getDialect() === 'sqlite'
+            ? "SELECT name FROM sqlite_master WHERE type='table' AND name='matches'"
+            : "SELECT table_name FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'matches'");
         return tables.length > 0;
     }
     catch (error) {
@@ -123,6 +125,7 @@ const createMatch = async (req, res) => {
                 // Continue with direct SQL approach
             }
             // Try direct SQL approach
+            const isSqlite = init_1.sequelize.getDialect() === 'sqlite';
             const [existingMatches] = await init_1.sequelize.query(`SELECT * FROM matches WHERE "matchNumber" = ${matchNumber} AND "teamNumber" = ${teamNumber}`);
             if (existingMatches.length > 0) {
                 const existingMatch = existingMatches[0];
@@ -134,25 +137,37 @@ const createMatch = async (req, res) => {
                         return `"${key}" = NULL`;
                     }
                     else if (Array.isArray(value)) {
-                        return `"${key}" = ARRAY[${value.map(v => `'${v}'`).join(',')}]::text[]`;
+                        if (isSqlite) {
+                            return `"${key}" = '${JSON.stringify(value)}'`;
+                        }
+                        else {
+                            return `"${key}" = ARRAY[${value.map(v => `'${v}'`).join(',')}]::text[]`;
+                        }
                     }
                     else if (typeof value === 'string') {
                         return `"${key}" = '${value.replace(/'/g, "''")}'`;
                     }
                     else if (typeof value === 'boolean') {
-                        return `"${key}" = ${value}`;
+                        return `"${key}" = ${isSqlite ? (value ? 1 : 0) : value}`;
                     }
                     else {
                         return `"${key}" = ${value}`;
                     }
                 })
                     .join(', ');
-                const updateQuery = `
-          UPDATE matches 
-          SET ${updateFields}, "updatedAt" = NOW() 
-          WHERE "matchNumber" = ${matchNumber} AND "teamNumber" = ${teamNumber} 
-          RETURNING *
-        `;
+                const updateQuery = isSqlite
+                    ? `
+            UPDATE matches 
+            SET ${updateFields}, "updatedAt" = CURRENT_TIMESTAMP 
+            WHERE "matchNumber" = ${matchNumber} AND "teamNumber" = ${teamNumber} 
+            RETURNING *
+          `
+                    : `
+            UPDATE matches 
+            SET ${updateFields}, "updatedAt" = NOW() 
+            WHERE "matchNumber" = ${matchNumber} AND "teamNumber" = ${teamNumber} 
+            RETURNING *
+          `;
                 const [updatedMatches] = await init_1.sequelize.query(updateQuery);
                 console.log('Match updated successfully (SQL):', updatedMatches[0]);
                 res.status(200).json(updatedMatches[0]);
@@ -166,23 +181,34 @@ const createMatch = async (req, res) => {
                         return 'NULL';
                     }
                     else if (Array.isArray(value)) {
-                        return `ARRAY[${value.map(v => `'${v}'`).join(',')}]::text[]`;
+                        if (isSqlite) {
+                            return `'${JSON.stringify(value)}'`;
+                        }
+                        else {
+                            return `ARRAY[${value.map(v => `'${v}'`).join(',')}]::text[]`;
+                        }
                     }
                     else if (typeof value === 'string') {
                         return `'${value.replace(/'/g, "''")}'`;
                     }
                     else if (typeof value === 'boolean') {
-                        return value;
+                        return isSqlite ? (value ? 1 : 0) : value;
                     }
                     else {
                         return value;
                     }
                 }).join(', ');
-                const insertQuery = `
-          INSERT INTO matches (${keys}, "createdAt", "updatedAt") 
-          VALUES (${values}, NOW(), NOW()) 
-          RETURNING *
-        `;
+                const insertQuery = isSqlite
+                    ? `
+            INSERT INTO matches (${keys}, "createdAt", "updatedAt") 
+            VALUES (${values}, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP) 
+            RETURNING *
+          `
+                    : `
+            INSERT INTO matches (${keys}, "createdAt", "updatedAt") 
+            VALUES (${values}, NOW(), NOW()) 
+            RETURNING *
+          `;
                 const [newMatches] = await init_1.sequelize.query(insertQuery);
                 console.log('Match created successfully (SQL):', newMatches[0]);
                 res.status(201).json(newMatches[0]);
@@ -206,6 +232,58 @@ const createMatch = async (req, res) => {
     }
 };
 exports.createMatch = createMatch;
+const getMatch = async (req, res) => {
+    try {
+        const matchNumber = parseInt(req.params.matchNumber);
+        const teamNumber = parseInt(req.params.teamNumber);
+        if (isNaN(matchNumber) || isNaN(teamNumber)) {
+            res.status(400).json({ error: 'Invalid match or team number' });
+            return;
+        }
+        // Try direct SQL approach
+        try {
+            const isSqlite = init_1.sequelize.getDialect() === 'sqlite';
+            const [matches] = await init_1.sequelize.query(`SELECT * FROM matches WHERE "matchNumber" = ${matchNumber} AND "teamNumber" = ${teamNumber}`);
+            if (matches.length === 0) {
+                res.status(404).json({ error: 'Match not found' });
+                return;
+            }
+            const match = matches[0];
+            // Parse coralLevels if it's a string (SQLite)
+            if (isSqlite && typeof match.coralLevels === 'string') {
+                try {
+                    match.coralLevels = JSON.parse(match.coralLevels);
+                    console.log('Parsed coralLevels from SQLite:', match.coralLevels);
+                }
+                catch (parseError) {
+                    console.error('Error parsing coralLevels from SQLite:', parseError);
+                    match.coralLevels = [];
+                }
+            }
+            res.json(match);
+        }
+        catch (sqlError) {
+            console.error('SQL error fetching match:', sqlError);
+            // Fall back to Sequelize
+            const match = await models_1.Match.findOne({
+                where: {
+                    matchNumber,
+                    teamNumber
+                },
+            });
+            if (!match) {
+                res.status(404).json({ error: 'Match not found' });
+                return;
+            }
+            res.json(match);
+        }
+    }
+    catch (error) {
+        console.error('Error fetching match:', error);
+        res.status(500).json({ error: 'Error fetching match', details: error.message });
+    }
+};
+exports.getMatch = getMatch;
 const getAllMatches = async (req, res) => {
     var _a, _b;
     try {
@@ -252,6 +330,22 @@ const getAllMatches = async (req, res) => {
             console.log('SQL Query:', query);
             const [matches] = await init_1.sequelize.query(query);
             console.log(`Found ${matches.length} matches`);
+            // Process each match for SQLite array handling
+            const isSqlite = init_1.sequelize.getDialect() === 'sqlite';
+            for (const match of matches) {
+                const matchRecord = match;
+                // Parse coralLevels if it's a string (SQLite)
+                if (isSqlite && typeof matchRecord.coralLevels === 'string') {
+                    try {
+                        matchRecord.coralLevels = JSON.parse(matchRecord.coralLevels);
+                        console.log(`Parsed coralLevels for match ${matchRecord.matchNumber}, team ${matchRecord.teamNumber}:`, matchRecord.coralLevels);
+                    }
+                    catch (parseError) {
+                        console.error(`Error parsing coralLevels for match ${matchRecord.matchNumber}, team ${matchRecord.teamNumber}:`, parseError);
+                        matchRecord.coralLevels = [];
+                    }
+                }
+            }
             res.json(matches);
         }
         catch (sqlError) {

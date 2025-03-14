@@ -6,11 +6,16 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.setupDatabase = void 0;
 const init_1 = require("./init");
 const bcryptjs_1 = __importDefault(require("bcryptjs"));
+const config_js_1 = __importDefault(require("../../config/config.js"));
+const env = process.env.NODE_ENV || 'development';
+const dbConfig = config_js_1.default[env];
+const isSqlite = dbConfig.dialect === 'sqlite';
 const setupDatabase = async () => {
     try {
         console.log('Starting database setup...');
         console.log('Database URL:', process.env.DATABASE_URL ? `${process.env.DATABASE_URL.substring(0, 25)}...` : 'Not set');
         console.log('Node environment:', process.env.NODE_ENV);
+        console.log('Database dialect:', dbConfig.dialect);
         // First, try to authenticate to make sure we can connect to the database
         try {
             await init_1.sequelize.authenticate();
@@ -24,77 +29,152 @@ const setupDatabase = async () => {
         console.log('Dropping and recreating tables...');
         try {
             // Drop tables if they exist
-            await init_1.sequelize.query(`
-        DROP TABLE IF EXISTS matches CASCADE;
-        DROP TABLE IF EXISTS teams CASCADE;
-        DROP TABLE IF EXISTS users CASCADE;
-      `);
-            console.log('Existing tables dropped');
+            if (isSqlite) {
+                // For SQLite, we'll use sequelize.sync({ force: true }) later
+                console.log('Using SQLite, tables will be dropped during sync');
+            }
+            else {
+                await init_1.sequelize.query(`
+          DROP TABLE IF EXISTS matches CASCADE;
+          DROP TABLE IF EXISTS teams CASCADE;
+          DROP TABLE IF EXISTS users CASCADE;
+        `);
+                console.log('Existing tables dropped');
+            }
             // Create teams table
             console.log('Creating teams table...');
-            await init_1.sequelize.query(`
-        CREATE TABLE teams (
-          id SERIAL PRIMARY KEY,
-          "teamNumber" INTEGER NOT NULL UNIQUE,
-          "autoScoreCoral" BOOLEAN DEFAULT false,
-          "autoScoreAlgae" BOOLEAN DEFAULT false,
-          "mustStartSpecificPosition" BOOLEAN DEFAULT false,
-          "autoStartingPosition" VARCHAR(255),
-          "teleopDealgifying" BOOLEAN DEFAULT false,
-          "teleopPreference" VARCHAR(255),
-          "scoringPreference" VARCHAR(255),
-          "coralLevels" TEXT[] DEFAULT '{}',
-          "endgameType" VARCHAR(255) DEFAULT 'none',
-          "robotWidth" FLOAT,
-          "robotLength" FLOAT,
-          "robotHeight" FLOAT,
-          "robotWeight" FLOAT,
-          "drivetrainType" VARCHAR(255),
-          "notes" TEXT DEFAULT '',
-          "imageUrl" VARCHAR(255),
-          "createdAt" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
-          "updatedAt" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
-        )
-      `);
+            if (isSqlite) {
+                // For SQLite, we'll create tables using models
+                await init_1.sequelize.query(`
+          CREATE TABLE IF NOT EXISTS teams (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            "teamNumber" INTEGER NOT NULL UNIQUE,
+            "autoScoreCoral" BOOLEAN DEFAULT 0,
+            "autoScoreAlgae" BOOLEAN DEFAULT 0,
+            "mustStartSpecificPosition" BOOLEAN DEFAULT 0,
+            "autoStartingPosition" TEXT,
+            "teleopDealgifying" BOOLEAN DEFAULT 0,
+            "teleopPreference" TEXT,
+            "scoringPreference" TEXT,
+            "coralLevels" TEXT DEFAULT '[]',
+            "endgameType" TEXT DEFAULT 'none',
+            "robotWidth" REAL,
+            "robotLength" REAL,
+            "robotHeight" REAL,
+            "robotWeight" REAL,
+            "drivetrainType" TEXT,
+            "notes" TEXT DEFAULT '',
+            "imageUrl" TEXT,
+            "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            "updatedAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+          )
+        `);
+            }
+            else {
+                await init_1.sequelize.query(`
+          CREATE TABLE teams (
+            id SERIAL PRIMARY KEY,
+            "teamNumber" INTEGER NOT NULL UNIQUE,
+            "autoScoreCoral" BOOLEAN DEFAULT false,
+            "autoScoreAlgae" BOOLEAN DEFAULT false,
+            "mustStartSpecificPosition" BOOLEAN DEFAULT false,
+            "autoStartingPosition" VARCHAR(255),
+            "teleopDealgifying" BOOLEAN DEFAULT false,
+            "teleopPreference" VARCHAR(255),
+            "scoringPreference" VARCHAR(255),
+            "coralLevels" TEXT[] DEFAULT '{}',
+            "endgameType" VARCHAR(255) DEFAULT 'none',
+            "robotWidth" FLOAT,
+            "robotLength" FLOAT,
+            "robotHeight" FLOAT,
+            "robotWeight" FLOAT,
+            "drivetrainType" VARCHAR(255),
+            "notes" TEXT DEFAULT '',
+            "imageUrl" VARCHAR(255),
+            "createdAt" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+            "updatedAt" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
+          )
+        `);
+            }
             console.log('Teams table created successfully');
             // Create matches table
             console.log('Creating matches table...');
-            await init_1.sequelize.query(`
-        CREATE TABLE matches (
-          id SERIAL PRIMARY KEY,
-          "matchNumber" INTEGER NOT NULL,
-          "teamNumber" INTEGER NOT NULL,
-          "autoScoreCoral" BOOLEAN DEFAULT false,
-          "autoScoreAlgae" BOOLEAN DEFAULT false,
-          "autoStartingPosition" VARCHAR(255),
-          "teleopDealgifying" BOOLEAN DEFAULT false,
-          "teleopPreference" VARCHAR(255),
-          "scoringPreference" VARCHAR(255),
-          "coralLevels" TEXT[] DEFAULT '{}',
-          "endgameType" VARCHAR(255) DEFAULT 'none',
-          "notes" TEXT DEFAULT '',
-          "createdAt" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
-          "updatedAt" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
-          UNIQUE("matchNumber", "teamNumber")
-        )
-      `);
+            if (isSqlite) {
+                await init_1.sequelize.query(`
+          CREATE TABLE IF NOT EXISTS matches (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            "matchNumber" INTEGER NOT NULL,
+            "teamNumber" INTEGER NOT NULL,
+            "autoScoreCoral" BOOLEAN DEFAULT 0,
+            "autoScoreAlgae" BOOLEAN DEFAULT 0,
+            "autoStartingPosition" TEXT,
+            "teleopDealgifying" BOOLEAN DEFAULT 0,
+            "teleopPreference" TEXT,
+            "scoringPreference" TEXT,
+            "coralLevels" TEXT DEFAULT '[]',
+            "endgameType" TEXT DEFAULT 'none',
+            "notes" TEXT DEFAULT '',
+            "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            "updatedAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE("matchNumber", "teamNumber")
+          )
+        `);
+            }
+            else {
+                await init_1.sequelize.query(`
+          CREATE TABLE matches (
+            id SERIAL PRIMARY KEY,
+            "matchNumber" INTEGER NOT NULL,
+            "teamNumber" INTEGER NOT NULL,
+            "autoScoreCoral" BOOLEAN DEFAULT false,
+            "autoScoreAlgae" BOOLEAN DEFAULT false,
+            "autoStartingPosition" VARCHAR(255),
+            "teleopDealgifying" BOOLEAN DEFAULT false,
+            "teleopPreference" VARCHAR(255),
+            "scoringPreference" VARCHAR(255),
+            "coralLevels" TEXT[] DEFAULT '{}',
+            "endgameType" VARCHAR(255) DEFAULT 'none',
+            "notes" TEXT DEFAULT '',
+            "createdAt" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+            "updatedAt" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+            UNIQUE("matchNumber", "teamNumber")
+          )
+        `);
+            }
             console.log('Matches table created successfully');
             // Create users table
             console.log('Creating users table...');
-            await init_1.sequelize.query(`
-        CREATE TABLE users (
-          id SERIAL PRIMARY KEY,
-          name VARCHAR(255) NOT NULL,
-          email VARCHAR(255) NOT NULL UNIQUE,
-          password VARCHAR(255) NOT NULL,
-          "teamNumber" INTEGER NOT NULL,
-          "createdAt" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
-          "updatedAt" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
-        )
-      `);
+            if (isSqlite) {
+                await init_1.sequelize.query(`
+          CREATE TABLE IF NOT EXISTS users (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL,
+            email TEXT NOT NULL UNIQUE,
+            password TEXT NOT NULL,
+            "teamNumber" INTEGER NOT NULL,
+            "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            "updatedAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+          )
+        `);
+            }
+            else {
+                await init_1.sequelize.query(`
+          CREATE TABLE users (
+            id SERIAL PRIMARY KEY,
+            name VARCHAR(255) NOT NULL,
+            email VARCHAR(255) NOT NULL UNIQUE,
+            password VARCHAR(255) NOT NULL,
+            "teamNumber" INTEGER NOT NULL,
+            "createdAt" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+            "updatedAt" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
+          )
+        `);
+            }
             console.log('Users table created successfully');
             // List tables to confirm creation
-            const [tables] = await init_1.sequelize.query("SELECT table_name FROM information_schema.tables WHERE table_schema = 'public'");
+            const [tables] = await init_1.sequelize.query(isSqlite
+                ? "SELECT name FROM sqlite_master WHERE type='table'"
+                : "SELECT table_name FROM information_schema.tables WHERE table_schema = 'public'");
             console.log('Tables after creation:', tables);
         }
         catch (error) {
@@ -109,14 +189,22 @@ const setupDatabase = async () => {
         console.log('Creating admin user...');
         try {
             const hashedPassword = await bcryptjs_1.default.hash('otisit!!!', 10);
-            await init_1.sequelize.query(`
-        INSERT INTO users (name, email, password, "teamNumber", "createdAt", "updatedAt")
-        VALUES ('Admin', '1334admin@gmail.com', '${hashedPassword}', 1334, NOW(), NOW())
-        ON CONFLICT (email) 
-        DO UPDATE SET 
-          password = '${hashedPassword}',
-          "updatedAt" = NOW()
-      `);
+            if (isSqlite) {
+                await init_1.sequelize.query(`
+          INSERT OR REPLACE INTO users (name, email, password, "teamNumber")
+          VALUES ('Admin', '1334admin@gmail.com', '${hashedPassword}', 1334)
+        `);
+            }
+            else {
+                await init_1.sequelize.query(`
+          INSERT INTO users (name, email, password, "teamNumber", "createdAt", "updatedAt")
+          VALUES ('Admin', '1334admin@gmail.com', '${hashedPassword}', 1334, NOW(), NOW())
+          ON CONFLICT (email) 
+          DO UPDATE SET 
+            password = '${hashedPassword}',
+            "updatedAt" = NOW()
+        `);
+            }
             console.log('Admin user created/updated successfully');
             // Verify user was created
             const [users] = await init_1.sequelize.query("SELECT * FROM users WHERE email = '1334admin@gmail.com'");

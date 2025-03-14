@@ -17,18 +17,14 @@ const dbConfig = parseDbUrl(process.env.DATABASE_URL);
 
 module.exports = {
   development: {
-    username: process.env.DB_USER || 'postgres',
-    password: process.env.DB_PASSWORD || 'postgres',
-    database: process.env.DB_NAME || 'scouting_app',
-    host: process.env.DB_HOST || 'localhost',
-    dialect: 'postgres'
+    dialect: 'sqlite',
+    storage: './database.sqlite',
+    logging: console.log
   },
   test: {
-    username: process.env.DB_USER || 'postgres',
-    password: process.env.DB_PASSWORD || 'postgres',
-    database: process.env.DB_TEST_NAME || 'scouting_app_test',
-    host: process.env.DB_HOST || 'localhost',
-    dialect: 'postgres'
+    dialect: 'sqlite',
+    storage: './database.test.sqlite',
+    logging: false
   },
   production: {
     use_env_variable: 'DATABASE_URL',
