@@ -436,7 +436,7 @@ export const getTeam = async (req: Request, res: Response): Promise<void> => {
     const teamNumber = parseInt(req.params.teamNumber);
     
     if (isNaN(teamNumber)) {
-      console.log('Invalid team number:', req.params.teamNumber);
+      console.error('Invalid team number:', req.params.teamNumber);
       res.status(400).json({ error: 'Invalid team number' });
       return;
     }
@@ -453,76 +453,73 @@ export const getTeam = async (req: Request, res: Response): Promise<void> => {
         : "SELECT table_name FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'teams'"
     );
     
-    console.log('Teams table exists:', tables && tables.length > 0);
+    const teamsTableExists = tables.length > 0;
+    console.log('Teams table exists:', teamsTableExists);
     
-    // Get team from database
-    const team = await Team.findOne({
-      where: { teamNumber }
-    });
-    
-    if (!team) {
-      // Try direct SQL query as a fallback
-      const [teams] = await sequelize.query(
-        `SELECT * FROM teams WHERE "teamNumber" = ${teamNumber}`
-      );
-      console.log('SQL query result:', teams);
-      
-      if (!teams || teams.length === 0) {
-        console.log('Team not found with number:', teamNumber);
-        res.status(404).json({ error: 'Team not found' });
-        return;
-      }
-      
-      // If we found the team with SQL but not with Sequelize, there might be a model issue
-      console.log('Team found with SQL but not with Sequelize model. Returning SQL result.');
-      
-      // Process the SQL result to match the expected format
-      const sqlTeam = teams[0] as any;
-      
-      // Handle coralLevels parsing
-      if (typeof sqlTeam.coralLevels === 'string') {
-        try {
-          sqlTeam.coralLevels = JSON.parse(sqlTeam.coralLevels);
-        } catch (error) {
-          console.error('Error parsing coralLevels from SQL result:', error);
-          sqlTeam.coralLevels = [];
-        }
-      } else if (!sqlTeam.coralLevels) {
-        sqlTeam.coralLevels = [];
-      }
-      
-      res.json(sqlTeam);
+    if (!teamsTableExists) {
+      console.error('Teams table does not exist');
+      res.status(500).json({ error: 'Teams table does not exist' });
       return;
     }
     
-    console.log('Team found:', team.teamNumber);
-    console.log('Team coralLevels (raw):', team.getDataValue('coralLevels'));
+    // Try direct SQL approach
+    const [teams] = await sequelize.query(
+      `SELECT * FROM teams WHERE "teamNumber" = ${teamNumber}`
+    );
     
-    // Get the team data with virtual fields
-    const teamData = team.toJSON();
-    console.log('Team data (JSON):', teamData);
-    
-    // Ensure coralLevels is properly handled
-    if (teamData.coralLevels) {
-      if (typeof teamData.coralLevels === 'string') {
-        try {
-          console.log('Parsing coralLevels string:', teamData.coralLevels);
-          teamData.coralLevels = JSON.parse(teamData.coralLevels as string);
-        } catch (error) {
-          console.error('Error parsing coralLevels:', error);
-          teamData.coralLevels = [];
-        }
-      }
-    } else {
-      console.log('No coralLevels found, setting to empty array');
-      teamData.coralLevels = [];
+    if (!teams || teams.length === 0) {
+      console.log('Team not found with number:', teamNumber);
+      res.status(404).json({ error: 'Team not found' });
+      return;
     }
     
-    console.log('Final team data being sent:', teamData);
-    res.json(teamData);
+    const team = teams[0] as any; // Type as any to avoid TypeScript errors
+    console.log('Team found:', teamNumber);
+    
+    // Parse coralLevels if it's a string
+    if (team.coralLevels) {
+      console.log('Team coralLevels (raw):', team.coralLevels);
+      
+      if (typeof team.coralLevels === 'string') {
+        try {
+          // Handle different string formats
+          if (team.coralLevels.startsWith('{') && team.coralLevels.endsWith('}')) {
+            // PostgreSQL array format like "{\"level1\",\"level2\"}"
+            const cleanedString = team.coralLevels
+              .replace(/^\{|\}$/g, '') // Remove { and }
+              .split(',')
+              .map(item => item.trim().replace(/^"|"$/g, '')); // Remove quotes
+            
+            team.coralLevels = cleanedString;
+          } else {
+            // Try standard JSON parse
+            team.coralLevels = JSON.parse(team.coralLevels);
+          }
+        } catch (error) {
+          console.error('Error parsing coralLevels:', error);
+          // Fallback to empty array if parsing fails
+          team.coralLevels = [];
+        }
+      }
+      
+      // Ensure coralLevels is always an array
+      if (!Array.isArray(team.coralLevels)) {
+        team.coralLevels = [team.coralLevels];
+      }
+    } else {
+      team.coralLevels = [];
+    }
+    
+    console.log('Team data (JSON):', team);
+    console.log('Final team data being sent:', team);
+    
+    res.json(team);
   } catch (error) {
-    console.error('Error in getTeam:', error);
-    res.status(500).json({ error: 'Server error', details: error instanceof Error ? error.message : String(error) });
+    console.error('Error fetching team:', error);
+    res.status(500).json({ 
+      error: 'Error fetching team', 
+      details: error instanceof Error ? error.message : String(error)
+    });
   }
 };
 

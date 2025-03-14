@@ -315,6 +315,30 @@ app.use('/api/auth', authRoutes);
 app.use('/api/teams', teamRoutes);
 app.use('/api/matches', matchRoutes);
 
+// Add a route to handle image paths with the correct URL structure
+app.get('/api/storage/:filename', (req: Request, res: Response) => {
+  const filename = req.params.filename;
+  const filePath = path.join(uploadsDir, filename);
+  
+  if (fs.existsSync(filePath)) {
+    res.sendFile(filePath);
+  } else {
+    res.status(404).json({ error: 'Image not found' });
+  }
+});
+
+// Redirect old image paths to the new format
+app.get('/uploads/:filename', (req: Request, res: Response) => {
+  const filename = req.params.filename;
+  const filePath = path.join(uploadsDir, filename);
+  
+  if (fs.existsSync(filePath)) {
+    res.sendFile(filePath);
+  } else {
+    res.status(404).json({ error: 'Image not found' });
+  }
+});
+
 // Function to check if tables exist
 async function checkTablesExist() {
   try {

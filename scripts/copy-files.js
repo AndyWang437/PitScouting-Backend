@@ -85,6 +85,16 @@ if (fs.existsSync('README.md')) {
   copyFile('README.md', 'dist/README.md');
 }
 
+// Copy DEPLOYMENT-GUIDE.md file
+if (fs.existsSync('DEPLOYMENT-GUIDE.md')) {
+  copyFile('DEPLOYMENT-GUIDE.md', 'dist/DEPLOYMENT-GUIDE.md');
+}
+
+// Copy FRONTEND-FIX.md file
+if (fs.existsSync('FRONTEND-FIX.md')) {
+  copyFile('FRONTEND-FIX.md', 'dist/FRONTEND-FIX.md');
+}
+
 // Copy FRONTEND-TROUBLESHOOTING.md file
 if (fs.existsSync('FRONTEND-TROUBLESHOOTING.md')) {
   copyFile('FRONTEND-TROUBLESHOOTING.md', 'dist/FRONTEND-TROUBLESHOOTING.md');
