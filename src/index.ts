@@ -18,7 +18,7 @@ const env = process.env.NODE_ENV || 'development';
 
 // Update CORS configuration to only allow your deployed frontend
 app.use(cors({
-  origin: process.env.FRONTEND_URL || 'https://1334pitscouting.vercel.app',
+  origin: '*', // Allow all origins temporarily for debugging
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'Accept'],
@@ -67,10 +67,70 @@ app.get('/', (_req: Request, res: Response) => {
   res.json({ 
     message: 'Scouting App API is running',
     environment: env,
-    corsOrigin: process.env.FRONTEND_URL || 'https://1334pitscouting.vercel.app',
+    corsOrigin: '*', // Updated to match our CORS configuration
     uploadsDir: uploadsDir,
     databaseUrl: process.env.DATABASE_URL ? `${process.env.DATABASE_URL.substring(0, 25)}...` : 'Not set'
   });
+});
+
+// Add a test endpoint
+app.get('/test', (_req: Request, res: Response) => {
+  res.json({ 
+    message: 'Test endpoint is working',
+    timestamp: new Date().toISOString()
+  });
+});
+
+// Add a test endpoint for team details
+app.get('/test-team/:teamNumber', async (req: Request, res: Response) => {
+  try {
+    const teamNumber = parseInt(req.params.teamNumber);
+    
+    if (isNaN(teamNumber)) {
+      res.status(400).json({ error: 'Invalid team number' });
+      return;
+    }
+
+    // Try direct SQL approach
+    const dialect = sequelize.getDialect();
+    console.log('Database dialect:', dialect);
+    
+    const [teams] = await sequelize.query(
+      `SELECT * FROM teams WHERE "teamNumber" = ${teamNumber}`
+    );
+    
+    if (!teams || teams.length === 0) {
+      res.status(404).json({ error: 'Team not found' });
+      return;
+    }
+    
+    const team = teams[0] as any; // Type as any to avoid TypeScript errors
+    
+    // Parse coralLevels if it's a string
+    if (typeof team.coralLevels === 'string') {
+      try {
+        team.coralLevels = JSON.parse(team.coralLevels);
+      } catch (error) {
+        console.error('Error parsing coralLevels:', error);
+        team.coralLevels = [];
+      }
+    } else if (!team.coralLevels) {
+      team.coralLevels = [];
+    }
+    
+    res.json({
+      message: 'Team details test endpoint',
+      team,
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    console.error('Error in test-team endpoint:', error);
+    res.status(500).json({ 
+      error: 'Error fetching team', 
+      details: error instanceof Error ? error.message : String(error),
+      timestamp: new Date().toISOString()
+    });
+  }
 });
 
 // Add this function before the app.get('/health') endpoint
@@ -267,6 +327,391 @@ async function createTablesDirectly() {
     return false;
   }
 }
+
+// Add a test HTML page
+app.get('/test-page', (_req: Request, res: Response) => {
+  const html = `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <title>API Test Page</title>
+      <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        h1 { color: #333; }
+        button { margin: 10px 0; padding: 8px 16px; cursor: pointer; }
+        #result { margin-top: 20px; padding: 10px; border: 1px solid #ddd; min-height: 200px; }
+        pre { white-space: pre-wrap; }
+      </style>
+    </head>
+    <body>
+      <h1>API Test Page</h1>
+      <div>
+        <label for="teamNumber">Team Number:</label>
+        <input type="number" id="teamNumber" value="1334" />
+        <button onclick="fetchTeam()">Fetch Team</button>
+      </div>
+      <div>
+        <button onclick="fetchAllTeams()">Fetch All Teams</button>
+      </div>
+      <div id="result">
+        <p>Results will appear here...</p>
+      </div>
+
+      <script>
+        function fetchTeam() {
+          const teamNumber = document.getElementById('teamNumber').value;
+          const resultDiv = document.getElementById('result');
+          
+          resultDiv.innerHTML = '<p>Loading...</p>';
+          
+          fetch('/api/teams/' + teamNumber)
+            .then(response => {
+              if (!response.ok) {
+                throw new Error('Network response was not ok: ' + response.status);
+              }
+              return response.json();
+            })
+            .then(data => {
+              resultDiv.innerHTML = '<h3>Team Details:</h3><pre>' + JSON.stringify(data, null, 2) + '</pre>';
+            })
+            .catch(error => {
+              resultDiv.innerHTML = '<h3>Error:</h3><pre>' + error + '</pre>';
+              console.error('Error fetching team:', error);
+            });
+        }
+        
+        function fetchAllTeams() {
+          const resultDiv = document.getElementById('result');
+          
+          resultDiv.innerHTML = '<p>Loading...</p>';
+          
+          fetch('/api/teams')
+            .then(response => {
+              if (!response.ok) {
+                throw new Error('Network response was not ok: ' + response.status);
+              }
+              return response.json();
+            })
+            .then(data => {
+              resultDiv.innerHTML = '<h3>All Teams:</h3><pre>' + JSON.stringify(data, null, 2) + '</pre>';
+            })
+            .catch(error => {
+              resultDiv.innerHTML = '<h3>Error:</h3><pre>' + error + '</pre>';
+              console.error('Error fetching teams:', error);
+            });
+        }
+      </script>
+    </body>
+    </html>
+  `;
+  
+  res.send(html);
+});
+
+// Add a test HTML page with CORS debugging
+app.get('/test-cors', (_req: Request, res: Response) => {
+  const html = `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <title>CORS Test Page</title>
+      <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        h1 { color: #333; }
+        button { margin: 10px 0; padding: 8px 16px; cursor: pointer; }
+        #result { margin-top: 20px; padding: 10px; border: 1px solid #ddd; min-height: 200px; }
+        pre { white-space: pre-wrap; }
+      </style>
+    </head>
+    <body>
+      <h1>CORS Test Page</h1>
+      <div>
+        <label for="apiUrl">API URL:</label>
+        <input type="text" id="apiUrl" value="https://1334pitscouting.onrender.com/api/teams/1334" style="width: 400px;" />
+        <button onclick="testCors()">Test CORS</button>
+      </div>
+      <div id="result">
+        <p>Results will appear here...</p>
+      </div>
+
+      <script>
+        function testCors() {
+          const apiUrl = document.getElementById('apiUrl').value;
+          const resultDiv = document.getElementById('result');
+          
+          resultDiv.innerHTML = '<p>Loading...</p>';
+          
+          fetch(apiUrl, {
+            method: 'GET',
+            headers: {
+              'Accept': 'application/json'
+            }
+          })
+            .then(response => {
+              resultDiv.innerHTML += '<p>Response status: ' + response.status + '</p>';
+              if (!response.ok) {
+                throw new Error('Network response was not ok: ' + response.status);
+              }
+              return response.json();
+            })
+            .then(data => {
+              resultDiv.innerHTML = '<h3>Response:</h3><pre>' + JSON.stringify(data, null, 2) + '</pre>';
+            })
+            .catch(error => {
+              resultDiv.innerHTML = '<h3>Error:</h3><pre>' + error + '</pre>';
+              console.error('Error testing CORS:', error);
+            });
+        }
+      </script>
+    </body>
+    </html>
+  `;
+  
+  res.send(html);
+});
+
+// Add a test HTML page for team details
+app.get('/test-team-page', (_req: Request, res: Response) => {
+  const html = `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <title>Team Details Test Page</title>
+      <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        h1, h2 { color: #333; }
+        .team-card { 
+          border: 1px solid #ddd; 
+          padding: 20px; 
+          margin-bottom: 20px; 
+          border-radius: 5px;
+          box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .team-header { 
+          display: flex; 
+          justify-content: space-between; 
+          align-items: center;
+          margin-bottom: 15px;
+        }
+        .team-number { 
+          font-size: 24px; 
+          font-weight: bold; 
+        }
+        .team-image { 
+          max-width: 300px; 
+          max-height: 200px; 
+          margin-bottom: 15px;
+          border: 1px solid #eee;
+        }
+        .team-details { 
+          display: grid;
+          grid-template-columns: repeat(2, 1fr);
+          gap: 10px;
+        }
+        .detail-item { 
+          margin-bottom: 5px; 
+        }
+        .detail-label { 
+          font-weight: bold; 
+          margin-right: 5px;
+        }
+        .coral-levels {
+          margin-top: 15px;
+        }
+        .coral-level-tag {
+          display: inline-block;
+          background-color: #e0f7fa;
+          padding: 5px 10px;
+          margin-right: 5px;
+          margin-bottom: 5px;
+          border-radius: 15px;
+          font-size: 14px;
+        }
+        button { 
+          margin: 10px 0; 
+          padding: 8px 16px; 
+          cursor: pointer; 
+          background-color: #4CAF50;
+          color: white;
+          border: none;
+          border-radius: 4px;
+        }
+        button:hover {
+          background-color: #45a049;
+        }
+        input {
+          padding: 8px;
+          margin-right: 10px;
+          border: 1px solid #ddd;
+          border-radius: 4px;
+        }
+        #error-message {
+          color: red;
+          margin-top: 10px;
+        }
+      </style>
+    </head>
+    <body>
+      <h1>Team Details Test Page</h1>
+      <div>
+        <label for="teamNumber">Team Number:</label>
+        <input type="number" id="teamNumber" value="1334" />
+        <button onclick="fetchTeam()">Fetch Team</button>
+      </div>
+      <div id="error-message"></div>
+      <div id="team-container"></div>
+
+      <script>
+        function fetchTeam() {
+          const teamNumber = document.getElementById('teamNumber').value;
+          const teamContainer = document.getElementById('team-container');
+          const errorMessage = document.getElementById('error-message');
+          
+          teamContainer.innerHTML = '<p>Loading...</p>';
+          errorMessage.innerHTML = '';
+          
+          fetch('/api/teams/' + teamNumber)
+            .then(response => {
+              if (!response.ok) {
+                throw new Error('Network response was not ok: ' + response.status);
+              }
+              return response.json();
+            })
+            .then(team => {
+              renderTeam(team);
+            })
+            .catch(error => {
+              teamContainer.innerHTML = '';
+              errorMessage.innerHTML = 'Error: ' + error.message;
+              console.error('Error fetching team:', error);
+            });
+        }
+        
+        function renderTeam(team) {
+          const teamContainer = document.getElementById('team-container');
+          
+          // Format boolean values
+          const formatBoolean = (value) => value ? 'Yes' : 'No';
+          
+          // Format null values
+          const formatValue = (value) => {
+            if (value === null || value === undefined) return 'N/A';
+            return value;
+          };
+          
+          // Create HTML for team details
+          let html = \`
+            <div class="team-card">
+              <div class="team-header">
+                <h2 class="team-number">Team \${team.teamNumber}</h2>
+              </div>
+          \`;
+          
+          // Add image if available
+          if (team.imageUrl) {
+            html += \`<img src="\${team.imageUrl}" alt="Team \${team.teamNumber}" class="team-image" />\`;
+          }
+          
+          // Add team details
+          html += \`
+            <div class="team-details">
+              <div class="detail-item">
+                <span class="detail-label">Auto Score Coral:</span>
+                <span>\${formatBoolean(team.autoScoreCoral)}</span>
+              </div>
+              <div class="detail-item">
+                <span class="detail-label">Auto Score Algae:</span>
+                <span>\${formatBoolean(team.autoScoreAlgae)}</span>
+              </div>
+              <div class="detail-item">
+                <span class="detail-label">Must Start Specific Position:</span>
+                <span>\${formatBoolean(team.mustStartSpecificPosition)}</span>
+              </div>
+              <div class="detail-item">
+                <span class="detail-label">Auto Starting Position:</span>
+                <span>\${formatValue(team.autoStartingPosition)}</span>
+              </div>
+              <div class="detail-item">
+                <span class="detail-label">Teleop Dealgifying:</span>
+                <span>\${formatBoolean(team.teleopDealgifying)}</span>
+              </div>
+              <div class="detail-item">
+                <span class="detail-label">Teleop Preference:</span>
+                <span>\${formatValue(team.teleopPreference)}</span>
+              </div>
+              <div class="detail-item">
+                <span class="detail-label">Scoring Preference:</span>
+                <span>\${formatValue(team.scoringPreference)}</span>
+              </div>
+              <div class="detail-item">
+                <span class="detail-label">Endgame Type:</span>
+                <span>\${formatValue(team.endgameType)}</span>
+              </div>
+              <div class="detail-item">
+                <span class="detail-label">Robot Width:</span>
+                <span>\${formatValue(team.robotWidth)}</span>
+              </div>
+              <div class="detail-item">
+                <span class="detail-label">Robot Length:</span>
+                <span>\${formatValue(team.robotLength)}</span>
+              </div>
+              <div class="detail-item">
+                <span class="detail-label">Robot Height:</span>
+                <span>\${formatValue(team.robotHeight)}</span>
+              </div>
+              <div class="detail-item">
+                <span class="detail-label">Robot Weight:</span>
+                <span>\${formatValue(team.robotWeight)}</span>
+              </div>
+              <div class="detail-item">
+                <span class="detail-label">Drivetrain Type:</span>
+                <span>\${formatValue(team.drivetrainType)}</span>
+              </div>
+            </div>
+          \`;
+          
+          // Add coral levels
+          html += \`
+            <div class="coral-levels">
+              <div class="detail-label">Coral Levels:</div>
+          \`;
+          
+          // Check if coralLevels exists and is an array
+          if (Array.isArray(team.coralLevels) && team.coralLevels.length > 0) {
+            team.coralLevels.forEach(level => {
+              html += \`<span class="coral-level-tag">\${level}</span>\`;
+            });
+          } else {
+            html += \`<span>None</span>\`;
+          }
+          
+          html += \`
+            </div>
+            
+            <div class="detail-item" style="margin-top: 15px;">
+              <span class="detail-label">Notes:</span>
+              <div>\${formatValue(team.notes)}</div>
+            </div>
+            
+            <div class="detail-item" style="margin-top: 15px;">
+              <span class="detail-label">Raw Data:</span>
+              <pre>\${JSON.stringify(team, null, 2)}</pre>
+            </div>
+          </div>
+          \`;
+          
+          teamContainer.innerHTML = html;
+        }
+        
+        // Fetch team on page load
+        document.addEventListener('DOMContentLoaded', fetchTeam);
+      </script>
+    </body>
+    </html>
+  `;
+  
+  res.send(html);
+});
 
 const startServer = async () => {
   try {

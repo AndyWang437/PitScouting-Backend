@@ -5,8 +5,8 @@
   "main": "dist/index.js",
   "scripts": {
     "start": "node dist/index.js",
-    "build": "tsc && node scripts/copy-files.js && npm run direct-fix-db",
-    "dev": "ts-node-dev src/index.ts",
+    "build": "tsc && node scripts/copy-files.js",
+    "dev": "ts-node-dev --respawn src/index.ts",
     "test": "echo \"Error: no test specified\" && exit 1",
     "migrate": "sequelize-cli db:migrate",
     "setup-db": "node dist/db/setup-script.js",

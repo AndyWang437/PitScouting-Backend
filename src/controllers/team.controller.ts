@@ -432,12 +432,16 @@ export const createTeam = async (req: Request, res: Response): Promise<void> => 
 
 export const getTeam = async (req: Request, res: Response): Promise<void> => {
   try {
+    console.log('getTeam called with params:', req.params);
     const teamNumber = parseInt(req.params.teamNumber);
     
     if (isNaN(teamNumber)) {
+      console.error('Invalid team number:', req.params.teamNumber);
       res.status(400).json({ error: 'Invalid team number' });
       return;
     }
+
+    console.log('Looking up team with number:', teamNumber);
 
     // Check if teams table exists
     const tableExists = await checkTeamsTable();
@@ -453,17 +457,22 @@ export const getTeam = async (req: Request, res: Response): Promise<void> => {
 
     // Try direct SQL approach
     try {
-      const isSqlite = sequelize.getDialect() === 'sqlite';
+      const dialect = sequelize.getDialect();
+      console.log('Database dialect:', dialect);
+      
       const [teams] = await sequelize.query(
         `SELECT * FROM teams WHERE "teamNumber" = ${teamNumber}`
       );
+      console.log('SQL query result:', JSON.stringify(teams, null, 2));
       
       if (!teams || teams.length === 0) {
+        console.error('Team not found with number:', teamNumber);
         res.status(404).json({ error: 'Team not found' });
         return;
       }
       
       const team = teams[0] as TeamRecord;
+      console.log('Raw team data from database:', JSON.stringify(team, null, 2));
       
       // Parse coralLevels if it's a string (SQLite or PostgreSQL TEXT)
       if (typeof team.coralLevels === 'string') {
@@ -477,6 +486,9 @@ export const getTeam = async (req: Request, res: Response): Promise<void> => {
       } else if (!team.coralLevels) {
         // Ensure coralLevels is always an array
         team.coralLevels = [];
+        console.log('No coralLevels found, using empty array');
+      } else {
+        console.log('coralLevels already in correct format:', team.coralLevels);
       }
       
       // Verify image exists if imageUrl is set
@@ -487,30 +499,39 @@ export const getTeam = async (req: Request, res: Response): Promise<void> => {
           : path.join(__dirname, '../../uploads');
         const filePath = path.join(uploadsDir, filename);
         
+        console.log('Checking if image exists at path:', filePath);
         if (!fs.existsSync(filePath)) {
           console.warn(`Image file not found: ${filePath}`);
           team.imageUrl = null;
+        } else {
+          console.log('Image file found at path:', filePath);
         }
       }
       
+      console.log('Final team data being sent to client:', JSON.stringify(team, null, 2));
       res.json(team);
     } catch (sqlError) {
       console.error('SQL error fetching team:', sqlError);
       
       // Fall back to Sequelize
       try {
+        console.log('Falling back to Sequelize ORM');
         const team = await Team.findOne({
           where: { teamNumber },
         });
 
         if (!team) {
+          console.error('Team not found with Sequelize ORM');
           res.status(404).json({ error: 'Team not found' });
           return;
         }
 
+        console.log('Team found with Sequelize ORM:', team.id);
+
         // Get coralLevels as array using the helper method
         const teamJSON = team.toJSON();
         teamJSON.coralLevels = team.getCoralLevelsArray();
+        console.log('coralLevels from helper method:', teamJSON.coralLevels);
 
         // Verify image exists if imageUrl is set
         if (team.imageUrl) {
@@ -520,12 +541,16 @@ export const getTeam = async (req: Request, res: Response): Promise<void> => {
             : path.join(__dirname, '../../uploads');
           const filePath = path.join(uploadsDir, filename);
           
+          console.log('Checking if image exists at path:', filePath);
           if (!fs.existsSync(filePath)) {
             console.warn(`Image file not found: ${filePath}`);
             teamJSON.imageUrl = null;
+          } else {
+            console.log('Image file found at path:', filePath);
           }
         }
 
+        console.log('Final team data being sent to client (Sequelize):', JSON.stringify(teamJSON, null, 2));
         res.json(teamJSON);
       } catch (ormError) {
         console.error('Error fetching team with Sequelize:', ormError);
