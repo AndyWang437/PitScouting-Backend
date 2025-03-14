@@ -19,7 +19,8 @@
     "create-test-team": "node scripts/create-test-team.js",
     "insert-test-team": "node scripts/insert-test-team.js",
     "diagnose-frontend": "node scripts/fix-frontend-issues.js",
-    "fix-frontend": "node scripts/fix-frontend-coralLevels.js"
+    "fix-frontend": "node scripts/fix-frontend-coralLevels.js",
+    "fix-frontend-all": "node scripts/fix-frontend-issues.js"
   },
   "engines": {
     "node": ">=18.0.0"

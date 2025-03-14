@@ -9,6 +9,7 @@ import { sequelize } from './db/init';
 import authRoutes from './routes/auth';
 import teamRoutes from './routes/teams';
 import matchRoutes from './routes/matches';
+import testRoutes from './routes/test-routes';
 import { initDb } from './db/init';
 import { setupDatabase } from './db/setup';
 
@@ -49,12 +50,21 @@ app.use('/api/storage', express.static(uploadsDir));
 // Add a route to check if an image exists
 app.get('/check-image/:filename', (req: Request, res: Response) => {
   const filename = req.params.filename;
-  const filePath = path.join(uploadsDir, filename);
+  const imagePath = path.join(uploadsDir, filename);
   
-  if (fs.existsSync(filePath)) {
-    res.json({ exists: true, path: `/uploads/${filename}` });
+  if (fs.existsSync(imagePath)) {
+    res.json({ 
+      exists: true, 
+      path: imagePath,
+      accessibleViaUploads: `/uploads/${filename}`,
+      accessibleViaApiStorage: `/api/storage/${filename}`
+    });
   } else {
-    res.json({ exists: false });
+    res.status(404).json({ 
+      exists: false, 
+      path: imagePath,
+      message: 'Image not found'
+    });
   }
 });
 
@@ -313,10 +323,11 @@ app.post('/setup-database', async (_req: Request, res: Response) => {
   }
 });
 
-// API routes
+// Set up routes
 app.use('/api/auth', authRoutes);
 app.use('/api/teams', teamRoutes);
 app.use('/api/matches', matchRoutes);
+app.use('/', testRoutes);
 
 // Add a route to handle image paths with the correct URL structure
 app.get('/api/storage/:filename', (req: Request, res: Response) => {

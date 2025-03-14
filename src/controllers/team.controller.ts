@@ -507,8 +507,15 @@ export const getTeam = async (req: Request, res: Response): Promise<any> => {
       team.coralLevels = [];
     }
     
+    // Double check that coralLevels is an array before sending
+    if (!Array.isArray(team.coralLevels)) {
+      console.error('coralLevels is still not an array after processing:', team.coralLevels);
+      team.coralLevels = [];
+    }
+    
     console.log('Team data (JSON):', team);
     console.log('Final team data being sent:', team);
+    console.log('coralLevels type:', typeof team.coralLevels, 'isArray:', Array.isArray(team.coralLevels));
     
     return res.json(team);
   } catch (error) {
