@@ -264,8 +264,28 @@ export const createTeam = async (req: Request, res: Response): Promise<void> => 
           `;
         
         const [newTeams] = await sequelize.query(insertQuery);
-        console.log('Team created successfully (SQL):', newTeams[0]);
-        res.status(201).json(newTeams[0]);
+        if (newTeams && newTeams.length > 0) {
+          console.log('Team created successfully (SQL):', newTeams[0]);
+          res.status(201).json(newTeams[0]);
+        } else {
+          console.log('Team created but no data returned from SQL query');
+          // Fetch the team we just created
+          const [createdTeams] = await sequelize.query(
+            `SELECT * FROM teams WHERE "teamNumber" = ${teamNumber}`
+          );
+          
+          if (createdTeams && createdTeams.length > 0) {
+            console.log('Retrieved created team:', createdTeams[0]);
+            res.status(201).json(createdTeams[0]);
+          } else {
+            console.error('Failed to retrieve created team');
+            res.status(500).json({ 
+              error: 'Error creating team', 
+              message: 'Team was created but could not be retrieved',
+              details: 'Database operation succeeded but returned no data'
+            });
+          }
+        }
       }
     } catch (sqlError) {
       console.error('SQL error creating/updating team:', sqlError);

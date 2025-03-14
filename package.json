@@ -9,8 +9,10 @@
     "dev": "ts-node-dev src/index.ts",
     "test": "echo \"Error: no test specified\" && exit 1",
     "migrate": "sequelize-cli db:migrate",
-    "setup-db": "ts-node src/db/setup-script.ts",
+    "setup-db": "node dist/db/setup-script.js",
+    "setup-db-dev": "ts-node src/db/setup-script.ts",
     "test-db": "ts-node scripts/test-db-setup.ts",
+    "check-db": "node scripts/check-db.js",
     "postinstall": "npm run build && npm run setup-db"
   },
   "engines": {

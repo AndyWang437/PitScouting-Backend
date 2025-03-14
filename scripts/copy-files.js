@@ -47,6 +47,11 @@ if (fs.existsSync('scripts/test-db-setup.ts')) {
   copyFile('scripts/test-db-setup.ts', 'dist/scripts/test-db-setup.ts');
 }
 
+// Copy check-db.js to dist/scripts
+if (fs.existsSync('scripts/check-db.js')) {
+  copyFile('scripts/check-db.js', 'dist/scripts/check-db.js');
+}
+
 // Copy .sequelizerc file
 copyFile('.sequelizerc', 'dist/.sequelizerc');
 

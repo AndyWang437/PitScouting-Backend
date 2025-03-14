@@ -234,8 +234,28 @@ export const createMatch = async (req: Request, res: Response): Promise<void> =>
           `;
         
         const [newMatches] = await sequelize.query(insertQuery);
-        console.log('Match created successfully (SQL):', newMatches[0]);
-        res.status(201).json(newMatches[0]);
+        if (newMatches && newMatches.length > 0) {
+          console.log('Match created successfully (SQL):', newMatches[0]);
+          res.status(201).json(newMatches[0]);
+        } else {
+          console.log('Match created but no data returned from SQL query');
+          // Fetch the match we just created
+          const [createdMatches] = await sequelize.query(
+            `SELECT * FROM matches WHERE "matchNumber" = ${matchNumber} AND "teamNumber" = ${teamNumber}`
+          );
+          
+          if (createdMatches && createdMatches.length > 0) {
+            console.log('Retrieved created match:', createdMatches[0]);
+            res.status(201).json(createdMatches[0]);
+          } else {
+            console.error('Failed to retrieve created match');
+            res.status(500).json({ 
+              error: 'Error creating match', 
+              message: 'Match was created but could not be retrieved',
+              details: 'Database operation succeeded but returned no data'
+            });
+          }
+        }
       }
     } catch (sqlError) {
       console.error('SQL error creating/updating match:', sqlError);
@@ -243,7 +263,7 @@ export const createMatch = async (req: Request, res: Response): Promise<void> =>
     }
   } catch (error: any) {
     console.error('Error creating match:', error);
-    console.error('Error details:', error.original || error);
+    console.error('Error details:', error.original || error.message);
     console.error('Error stack:', error.stack);
     res.status(400).json({ 
       error: 'Error creating match', 
