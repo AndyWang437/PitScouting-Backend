@@ -186,7 +186,7 @@ export const createTeam = async (req: Request, res: Response): Promise<void> => 
         `SELECT * FROM teams WHERE "teamNumber" = ${teamNumber}`
       );
       
-      if (existingTeams.length > 0) {
+      if (existingTeams && existingTeams.length > 0) {
         const existingTeam = existingTeams[0] as TeamRecord;
         console.log('Team exists (SQL), updating:', existingTeam.id);
         
@@ -226,8 +226,17 @@ export const createTeam = async (req: Request, res: Response): Promise<void> => 
           `;
         
         const [updatedTeams] = await sequelize.query(updateQuery);
-        console.log('Team updated successfully (SQL):', updatedTeams[0]);
-        res.status(200).json(updatedTeams[0]);
+        if (updatedTeams && updatedTeams.length > 0) {
+          console.log('Team updated successfully (SQL):', updatedTeams[0]);
+          res.status(200).json(updatedTeams[0]);
+        } else {
+          console.error('Team update failed, no data returned');
+          res.status(500).json({ 
+            error: 'Error updating team', 
+            message: 'Team update failed',
+            details: 'Database operation succeeded but returned no data'
+          });
+        }
       } else {
         console.log('Team does not exist, creating new team');
         
@@ -240,6 +249,9 @@ export const createTeam = async (req: Request, res: Response): Promise<void> => 
             if (isSqlite) {
               return `'${JSON.stringify(value)}'`;
             } else {
+              if (value.length === 0) {
+                return `'{}'::text[]`;
+              }
               return `ARRAY[${value.map(v => `'${v}'`).join(',')}]::text[]`;
             }
           } else if (typeof value === 'string') {
@@ -263,33 +275,74 @@ export const createTeam = async (req: Request, res: Response): Promise<void> => 
             RETURNING *
           `;
         
+        console.log('Insert query:', insertQuery);
+        
         try {
           const [newTeams] = await sequelize.query(insertQuery);
+          
+          // Check if newTeams is defined and has elements
           if (newTeams && Array.isArray(newTeams) && newTeams.length > 0) {
             console.log('Team created successfully (SQL):', newTeams[0]);
             res.status(201).json(newTeams[0]);
           } else {
             console.log('Team created but no data returned from SQL query');
-            // Fetch the team we just created
-            const [createdTeams] = await sequelize.query(
-              `SELECT * FROM teams WHERE "teamNumber" = ${teamNumber}`
-            );
             
-            if (createdTeams && Array.isArray(createdTeams) && createdTeams.length > 0) {
-              console.log('Retrieved created team:', createdTeams[0]);
-              res.status(201).json(createdTeams[0]);
-            } else {
-              console.error('Failed to retrieve created team');
-              res.status(500).json({ 
-                error: 'Error creating team', 
-                message: 'Team was created but could not be retrieved',
-                details: 'Database operation succeeded but returned no data'
+            // Try to create the team using Sequelize ORM
+            try {
+              console.log('Trying to create team using Sequelize ORM');
+              const newTeam = await Team.create({
+                ...processedData,
+                coralLevels: JSON.stringify(coralLevels)
               });
+              console.log('Team created successfully with Sequelize:', newTeam.toJSON());
+              res.status(201).json(newTeam);
+              return;
+            } catch (ormError) {
+              console.error('Error creating team with Sequelize:', ormError);
+              
+              // Fetch the team we just created
+              try {
+                const [createdTeams] = await sequelize.query(
+                  `SELECT * FROM teams WHERE "teamNumber" = ${teamNumber}`
+                );
+                
+                if (createdTeams && Array.isArray(createdTeams) && createdTeams.length > 0) {
+                  console.log('Retrieved created team:', createdTeams[0]);
+                  res.status(201).json(createdTeams[0]);
+                } else {
+                  console.error('Failed to retrieve created team');
+                  res.status(500).json({ 
+                    error: 'Error creating team', 
+                    message: 'Team was created but could not be retrieved',
+                    details: 'Database operation succeeded but returned no data'
+                  });
+                }
+              } catch (fetchError) {
+                console.error('Error fetching created team:', fetchError);
+                res.status(500).json({ 
+                  error: 'Error creating team', 
+                  message: 'Team may have been created but could not be retrieved',
+                  details: fetchError.message
+                });
+              }
             }
           }
         } catch (insertError) {
           console.error('Error executing insert query:', insertError);
-          throw insertError;
+          
+          // Try to create the team using Sequelize ORM as a fallback
+          try {
+            console.log('Trying to create team using Sequelize ORM after SQL error');
+            const newTeam = await Team.create({
+              ...processedData,
+              coralLevels: JSON.stringify(coralLevels)
+            });
+            console.log('Team created successfully with Sequelize after SQL error:', newTeam.toJSON());
+            res.status(201).json(newTeam);
+          } catch (ormError) {
+            console.error('Error creating team with Sequelize after SQL error:', ormError);
+            throw insertError; // Re-throw the original error
+          }
         }
       }
     } catch (sqlError) {

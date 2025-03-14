@@ -156,7 +156,7 @@ export const createMatch = async (req: Request, res: Response): Promise<void> =>
         `SELECT * FROM matches WHERE "matchNumber" = ${matchNumber} AND "teamNumber" = ${teamNumber}`
       );
       
-      if (existingMatches.length > 0) {
+      if (existingMatches && existingMatches.length > 0) {
         const existingMatch = existingMatches[0] as MatchRecord;
         console.log('Match exists (SQL), updating:', existingMatch.id);
         
@@ -169,6 +169,9 @@ export const createMatch = async (req: Request, res: Response): Promise<void> =>
               if (isSqlite) {
                 return `"${key}" = '${JSON.stringify(value)}'`;
               } else {
+                if (value.length === 0) {
+                  return `"${key}" = '{}'::text[]`;
+                }
                 return `"${key}" = ARRAY[${value.map(v => `'${v}'`).join(',')}]::text[]`;
               }
             } else if (typeof value === 'string') {
@@ -196,8 +199,17 @@ export const createMatch = async (req: Request, res: Response): Promise<void> =>
           `;
         
         const [updatedMatches] = await sequelize.query(updateQuery);
-        console.log('Match updated successfully (SQL):', updatedMatches[0]);
-        res.status(200).json(updatedMatches[0]);
+        if (updatedMatches && updatedMatches.length > 0) {
+          console.log('Match updated successfully (SQL):', updatedMatches[0]);
+          res.status(200).json(updatedMatches[0]);
+        } else {
+          console.error('Match update failed, no data returned');
+          res.status(500).json({ 
+            error: 'Error updating match', 
+            message: 'Match update failed',
+            details: 'Database operation succeeded but returned no data'
+          });
+        }
       } else {
         console.log('Match does not exist, creating new match');
         
@@ -210,6 +222,9 @@ export const createMatch = async (req: Request, res: Response): Promise<void> =>
             if (isSqlite) {
               return `'${JSON.stringify(value)}'`;
             } else {
+              if (value.length === 0) {
+                return `'{}'::text[]`;
+              }
               return `ARRAY[${value.map(v => `'${v}'`).join(',')}]::text[]`;
             }
           } else if (typeof value === 'string') {
@@ -233,33 +248,74 @@ export const createMatch = async (req: Request, res: Response): Promise<void> =>
             RETURNING *
           `;
         
+        console.log('Insert query:', insertQuery);
+        
         try {
           const [newMatches] = await sequelize.query(insertQuery);
+          
+          // Check if newMatches is defined and has elements
           if (newMatches && Array.isArray(newMatches) && newMatches.length > 0) {
             console.log('Match created successfully (SQL):', newMatches[0]);
             res.status(201).json(newMatches[0]);
           } else {
             console.log('Match created but no data returned from SQL query');
-            // Fetch the match we just created
-            const [createdMatches] = await sequelize.query(
-              `SELECT * FROM matches WHERE "matchNumber" = ${matchNumber} AND "teamNumber" = ${teamNumber}`
-            );
             
-            if (createdMatches && Array.isArray(createdMatches) && createdMatches.length > 0) {
-              console.log('Retrieved created match:', createdMatches[0]);
-              res.status(201).json(createdMatches[0]);
-            } else {
-              console.error('Failed to retrieve created match');
-              res.status(500).json({ 
-                error: 'Error creating match', 
-                message: 'Match was created but could not be retrieved',
-                details: 'Database operation succeeded but returned no data'
+            // Try to create the match using Sequelize ORM
+            try {
+              console.log('Trying to create match using Sequelize ORM');
+              const newMatch = await Match.create({
+                ...processedData,
+                coralLevels: JSON.stringify(coralLevels)
               });
+              console.log('Match created successfully with Sequelize:', newMatch.toJSON());
+              res.status(201).json(newMatch);
+              return;
+            } catch (ormError) {
+              console.error('Error creating match with Sequelize:', ormError);
+              
+              // Fetch the match we just created
+              try {
+                const [createdMatches] = await sequelize.query(
+                  `SELECT * FROM matches WHERE "matchNumber" = ${matchNumber} AND "teamNumber" = ${teamNumber}`
+                );
+                
+                if (createdMatches && Array.isArray(createdMatches) && createdMatches.length > 0) {
+                  console.log('Retrieved created match:', createdMatches[0]);
+                  res.status(201).json(createdMatches[0]);
+                } else {
+                  console.error('Failed to retrieve created match');
+                  res.status(500).json({ 
+                    error: 'Error creating match', 
+                    message: 'Match was created but could not be retrieved',
+                    details: 'Database operation succeeded but returned no data'
+                  });
+                }
+              } catch (fetchError) {
+                console.error('Error fetching created match:', fetchError);
+                res.status(500).json({ 
+                  error: 'Error creating match', 
+                  message: 'Match may have been created but could not be retrieved',
+                  details: fetchError.message
+                });
+              }
             }
           }
         } catch (insertError) {
           console.error('Error executing insert query:', insertError);
-          throw insertError;
+          
+          // Try to create the match using Sequelize ORM as a fallback
+          try {
+            console.log('Trying to create match using Sequelize ORM after SQL error');
+            const newMatch = await Match.create({
+              ...processedData,
+              coralLevels: JSON.stringify(coralLevels)
+            });
+            console.log('Match created successfully with Sequelize after SQL error:', newMatch.toJSON());
+            res.status(201).json(newMatch);
+          } catch (ormError) {
+            console.error('Error creating match with Sequelize after SQL error:', ormError);
+            throw insertError; // Re-throw the original error
+          }
         }
       }
     } catch (sqlError) {
