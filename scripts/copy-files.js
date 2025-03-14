@@ -37,7 +37,22 @@ copyDir('migrations', 'dist/migrations');
 // Copy config directory
 copyDir('config', 'dist/config');
 
+// Copy scripts directory
+if (!fs.existsSync('dist/scripts')) {
+  fs.mkdirSync('dist/scripts', { recursive: true });
+}
+
+// Copy test-db-setup.ts to dist/scripts
+if (fs.existsSync('scripts/test-db-setup.ts')) {
+  copyFile('scripts/test-db-setup.ts', 'dist/scripts/test-db-setup.ts');
+}
+
 // Copy .sequelizerc file
 copyFile('.sequelizerc', 'dist/.sequelizerc');
+
+// Copy README.md file
+if (fs.existsSync('README.md')) {
+  copyFile('README.md', 'dist/README.md');
+}
 
 console.log('All files copied successfully!'); 

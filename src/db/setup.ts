@@ -11,7 +11,7 @@ export const setupDatabase = async () => {
     console.log('Starting database setup...');
     console.log('Database URL:', process.env.DATABASE_URL ? `${process.env.DATABASE_URL.substring(0, 25)}...` : 'Not set');
     console.log('Node environment:', process.env.NODE_ENV);
-    console.log('Database dialect:', dbConfig.dialect);
+    console.log('Database dialect:', sequelize.getDialect());
     
     // First, try to authenticate to make sure we can connect to the database
     try {
@@ -30,12 +30,17 @@ export const setupDatabase = async () => {
         // For SQLite, we'll use sequelize.sync({ force: true }) later
         console.log('Using SQLite, tables will be dropped during sync');
       } else {
-        await sequelize.query(`
-          DROP TABLE IF EXISTS matches CASCADE;
-          DROP TABLE IF EXISTS teams CASCADE;
-          DROP TABLE IF EXISTS users CASCADE;
-        `);
-        console.log('Existing tables dropped');
+        try {
+          await sequelize.query(`
+            DROP TABLE IF EXISTS matches CASCADE;
+            DROP TABLE IF EXISTS teams CASCADE;
+            DROP TABLE IF EXISTS users CASCADE;
+          `);
+          console.log('Existing tables dropped');
+        } catch (dropError) {
+          console.error('Error dropping tables:', dropError);
+          // Continue anyway, as tables might not exist yet
+        }
       }
       
       // Create teams table
@@ -68,7 +73,7 @@ export const setupDatabase = async () => {
         `);
       } else {
         await sequelize.query(`
-          CREATE TABLE teams (
+          CREATE TABLE IF NOT EXISTS teams (
             id SERIAL PRIMARY KEY,
             "teamNumber" INTEGER NOT NULL UNIQUE,
             "autoScoreCoral" BOOLEAN DEFAULT false,
@@ -78,7 +83,7 @@ export const setupDatabase = async () => {
             "teleopDealgifying" BOOLEAN DEFAULT false,
             "teleopPreference" VARCHAR(255),
             "scoringPreference" VARCHAR(255),
-            "coralLevels" TEXT[] DEFAULT '{}',
+            "coralLevels" TEXT DEFAULT '[]',
             "endgameType" VARCHAR(255) DEFAULT 'none',
             "robotWidth" FLOAT,
             "robotLength" FLOAT,
@@ -118,7 +123,7 @@ export const setupDatabase = async () => {
         `);
       } else {
         await sequelize.query(`
-          CREATE TABLE matches (
+          CREATE TABLE IF NOT EXISTS matches (
             id SERIAL PRIMARY KEY,
             "matchNumber" INTEGER NOT NULL,
             "teamNumber" INTEGER NOT NULL,
@@ -128,7 +133,7 @@ export const setupDatabase = async () => {
             "teleopDealgifying" BOOLEAN DEFAULT false,
             "teleopPreference" VARCHAR(255),
             "scoringPreference" VARCHAR(255),
-            "coralLevels" TEXT[] DEFAULT '{}',
+            "coralLevels" TEXT DEFAULT '[]',
             "endgameType" VARCHAR(255) DEFAULT 'none',
             "notes" TEXT DEFAULT '',
             "createdAt" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
@@ -155,7 +160,7 @@ export const setupDatabase = async () => {
         `);
       } else {
         await sequelize.query(`
-          CREATE TABLE users (
+          CREATE TABLE IF NOT EXISTS users (
             id SERIAL PRIMARY KEY,
             name VARCHAR(255) NOT NULL,
             email VARCHAR(255) NOT NULL UNIQUE,
@@ -192,8 +197,8 @@ export const setupDatabase = async () => {
       
       if (isSqlite) {
         await sequelize.query(`
-          INSERT OR REPLACE INTO users (name, email, password, "teamNumber")
-          VALUES ('Admin', '1334admin@gmail.com', '${hashedPassword}', 1334)
+          INSERT OR REPLACE INTO users (name, email, password, "teamNumber", "createdAt", "updatedAt")
+          VALUES ('Admin', '1334admin@gmail.com', '${hashedPassword}', 1334, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
         `);
       } else {
         await sequelize.query(`

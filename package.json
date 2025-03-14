@@ -8,7 +8,10 @@
     "build": "tsc && node scripts/copy-files.js",
     "dev": "ts-node-dev src/index.ts",
     "test": "echo \"Error: no test specified\" && exit 1",
-    "migrate": "sequelize-cli db:migrate"
+    "migrate": "sequelize-cli db:migrate",
+    "setup-db": "ts-node src/db/setup-script.ts",
+    "test-db": "ts-node scripts/test-db-setup.ts",
+    "postinstall": "npm run build && npm run setup-db"
   },
   "engines": {
     "node": ">=18.0.0"

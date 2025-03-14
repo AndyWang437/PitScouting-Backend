@@ -10,7 +10,11 @@ let sequelize: Sequelize;
 
 console.log('Initializing database connection...');
 console.log('Environment:', env);
-console.log('Database config:', dbConfig);
+console.log('Database config:', { 
+  ...dbConfig, 
+  password: dbConfig.password ? '******' : undefined,
+  use_env_variable: dbConfig.use_env_variable || undefined
+});
 
 // Force using SQLite for development
 if (env === 'development') {
@@ -33,24 +37,29 @@ if (env === 'development') {
 } else if (env === 'production' && process.env.DATABASE_URL) {
   console.log('Using production database configuration with DATABASE_URL');
   
-  sequelize = new Sequelize(process.env.DATABASE_URL, {
-    dialect: 'postgres',
-    dialectOptions: {
-      ssl: {
-        require: true,
-        rejectUnauthorized: false
-      }
-    },
-    pool: {
-      max: 5,
-      min: 0,
-      acquire: 30000,
-      idle: 10000
-    },
-    logging: console.log
-  });
-  
-  console.log('Production database connection initialized');
+  try {
+    sequelize = new Sequelize(process.env.DATABASE_URL, {
+      dialect: 'postgres',
+      dialectOptions: {
+        ssl: {
+          require: true,
+          rejectUnauthorized: false
+        }
+      },
+      pool: {
+        max: 5,
+        min: 0,
+        acquire: 30000,
+        idle: 10000
+      },
+      logging: console.log
+    });
+    
+    console.log('Production database connection initialized');
+  } catch (error) {
+    console.error('Error initializing production database connection:', error);
+    throw error;
+  }
 } else {
   console.log('Using database configuration from config');
   

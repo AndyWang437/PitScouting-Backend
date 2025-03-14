@@ -10,7 +10,7 @@ class Team extends Model {
   public teleopDealgifying!: boolean;
   public teleopPreference!: string | null;
   public scoringPreference!: string | null;
-  public coralLevels!: string[];
+  public coralLevels!: string[] | string; // Allow string for SQLite storage
   public endgameType!: string;
   public robotWidth!: number | null;
   public robotLength!: number | null;
@@ -22,8 +22,24 @@ class Team extends Model {
   public createdAt!: Date;
   public updatedAt!: Date;
 
+  // Helper method to always get coralLevels as an array regardless of storage format
+  public getCoralLevelsArray(): string[] {
+    const levels = this.coralLevels;
+    if (typeof levels === 'string') {
+      try {
+        return JSON.parse(levels);
+      } catch (error) {
+        console.error('Error parsing coralLevels string:', error);
+        return [];
+      }
+    }
+    return levels || [];
+  }
+
   public static initialize(sequelize: Sequelize) {
     console.log('Initializing Team model with sequelize instance');
+    const isSqlite = sequelize.getDialect() === 'sqlite';
+    
     this.init({
       id: {
         type: DataTypes.INTEGER,
@@ -64,24 +80,45 @@ class Team extends Model {
         allowNull: true,
       },
       coralLevels: {
-        type: DataTypes.ARRAY(DataTypes.STRING),
-        defaultValue: [],
+        type: isSqlite ? DataTypes.TEXT : DataTypes.ARRAY(DataTypes.STRING),
+        defaultValue: isSqlite ? '[]' : [],
         get() {
           const rawValue = this.getDataValue('coralLevels');
-          return rawValue ? rawValue : [];
+          if (!rawValue) return isSqlite ? '[]' : [];
+          
+          if (isSqlite) {
+            // For SQLite, we return the raw string value
+            // The getCoralLevelsArray() method can be used to get the parsed array
+            return rawValue;
+          }
+          
+          return rawValue;
         },
         set(value: any) {
-          if (typeof value === 'string') {
-            try {
-              this.setDataValue('coralLevels', JSON.parse(value));
-            } catch (error) {
-              console.error('Error parsing coralLevels:', error);
-              this.setDataValue('coralLevels', []);
+          if (isSqlite) {
+            if (typeof value === 'string') {
+              // Store the string directly for SQLite
+              this.setDataValue('coralLevels', value);
+            } else if (Array.isArray(value)) {
+              // Convert array to JSON string for SQLite
+              this.setDataValue('coralLevels', JSON.stringify(value));
+            } else {
+              this.setDataValue('coralLevels', '[]');
             }
-          } else if (Array.isArray(value)) {
-            this.setDataValue('coralLevels', value);
           } else {
-            this.setDataValue('coralLevels', []);
+            // PostgreSQL can handle arrays directly
+            if (typeof value === 'string') {
+              try {
+                // Parse string to array for PostgreSQL
+                const parsedValue = JSON.parse(value);
+                this.setDataValue('coralLevels', parsedValue);
+              } catch (error) {
+                console.error('Error parsing coralLevels for PostgreSQL:', error);
+                this.setDataValue('coralLevels', []);
+              }
+            } else {
+              this.setDataValue('coralLevels', value || []);
+            }
           }
         }
       },
