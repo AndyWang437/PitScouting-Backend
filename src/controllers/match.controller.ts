@@ -403,6 +403,18 @@ export const getMatch = async (req: Request, res: Response): Promise<void> => {
       return;
     }
 
+    // Check if matches table exists
+    const tableExists = await checkMatchesTable();
+    if (!tableExists) {
+      console.error('Matches table does not exist');
+      res.status(500).json({ 
+        error: 'Database error', 
+        message: 'Matches table does not exist',
+        details: 'Please contact the administrator to set up the database'
+      });
+      return;
+    }
+
     // Try direct SQL approach
     try {
       const isSqlite = sequelize.getDialect() === 'sqlite';
@@ -410,22 +422,25 @@ export const getMatch = async (req: Request, res: Response): Promise<void> => {
         `SELECT * FROM matches WHERE "matchNumber" = ${matchNumber} AND "teamNumber" = ${teamNumber}`
       );
       
-      if (matches.length === 0) {
+      if (!matches || matches.length === 0) {
         res.status(404).json({ error: 'Match not found' });
         return;
       }
       
       const match = matches[0] as MatchRecord;
       
-      // Parse coralLevels if it's a string (SQLite)
-      if (isSqlite && typeof match.coralLevels === 'string') {
+      // Parse coralLevels if it's a string (SQLite or PostgreSQL TEXT)
+      if (typeof match.coralLevels === 'string') {
         try {
           match.coralLevels = JSON.parse(match.coralLevels as unknown as string);
-          console.log('Parsed coralLevels from SQLite:', match.coralLevels);
+          console.log('Parsed coralLevels from database:', match.coralLevels);
         } catch (parseError) {
-          console.error('Error parsing coralLevels from SQLite:', parseError);
+          console.error('Error parsing coralLevels from database:', parseError);
           match.coralLevels = [];
         }
+      } else if (!match.coralLevels) {
+        // Ensure coralLevels is always an array
+        match.coralLevels = [];
       }
       
       res.json(match);
@@ -433,23 +448,36 @@ export const getMatch = async (req: Request, res: Response): Promise<void> => {
       console.error('SQL error fetching match:', sqlError);
       
       // Fall back to Sequelize
-      const match = await Match.findOne({
-        where: { 
-          matchNumber,
-          teamNumber
-        },
-      });
+      try {
+        const match = await Match.findOne({
+          where: { 
+            matchNumber,
+            teamNumber
+          },
+        });
 
-      if (!match) {
-        res.status(404).json({ error: 'Match not found' });
-        return;
+        if (!match) {
+          res.status(404).json({ error: 'Match not found' });
+          return;
+        }
+
+        // Get coralLevels as array using the helper method
+        const matchJSON = match.toJSON();
+        matchJSON.coralLevels = match.getCoralLevelsArray();
+
+        res.json(matchJSON);
+      } catch (ormError) {
+        console.error('Error fetching match with Sequelize:', ormError);
+        throw sqlError; // Re-throw the original error
       }
-
-      res.json(match);
     }
   } catch (error: any) {
     console.error('Error fetching match:', error);
-    res.status(500).json({ error: 'Error fetching match', details: error.message });
+    res.status(500).json({ 
+      error: 'Error fetching match', 
+      details: error.message || 'Unknown error',
+      stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
+    });
   }
 };
 
@@ -474,7 +502,24 @@ export const getAllMatches = async (req: Request, res: Response): Promise<void> 
       console.log('SQL Query: SELECT * FROM matches');
       const [matches] = await sequelize.query('SELECT * FROM matches');
       console.log(`Found ${matches.length} matches`);
-      res.status(200).json(matches);
+      
+      // Process each match to handle coralLevels
+      const processedMatches = matches.map((match: any) => {
+        // Parse coralLevels if it's a string
+        if (typeof match.coralLevels === 'string') {
+          try {
+            match.coralLevels = JSON.parse(match.coralLevels);
+          } catch (parseError) {
+            console.error(`Error parsing coralLevels for match ${match.matchNumber}/${match.teamNumber}:`, parseError);
+            match.coralLevels = [];
+          }
+        } else if (!match.coralLevels) {
+          match.coralLevels = [];
+        }
+        return match;
+      });
+      
+      res.status(200).json(processedMatches);
     } catch (sqlError) {
       console.error('SQL error fetching matches:', sqlError);
       
@@ -483,7 +528,15 @@ export const getAllMatches = async (req: Request, res: Response): Promise<void> 
         console.log('Trying to fetch matches with Sequelize ORM');
         const matches = await Match.findAll();
         console.log(`Found ${matches.length} matches with Sequelize`);
-        res.status(200).json(matches);
+        
+        // Process each match to handle coralLevels
+        const processedMatches = matches.map(match => {
+          const matchJSON = match.toJSON();
+          matchJSON.coralLevels = match.getCoralLevelsArray();
+          return matchJSON;
+        });
+        
+        res.status(200).json(processedMatches);
       } catch (ormError) {
         console.error('Error fetching matches with Sequelize:', ormError);
         throw sqlError; // Re-throw the original error
@@ -493,7 +546,8 @@ export const getAllMatches = async (req: Request, res: Response): Promise<void> 
     console.error('Error fetching matches:', error);
     res.status(500).json({ 
       error: 'Error fetching matches', 
-      details: error.message || 'Unknown error'
+      details: error.message || 'Unknown error',
+      stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
     });
   }
 }; 
