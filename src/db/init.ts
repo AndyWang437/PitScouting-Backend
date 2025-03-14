@@ -1,109 +1,107 @@
 import { Sequelize } from 'sequelize';
-import config from '../../config/config.js';
 import fs from 'fs';
 import path from 'path';
 
+// Get environment variables
 const env = process.env.NODE_ENV || 'development';
-const dbConfig = config[env];
+console.log('Environment:', env);
 
+// Create a Sequelize instance
 let sequelize: Sequelize;
 
-console.log('Initializing database connection...');
-console.log('Environment:', env);
-console.log('Database config:', { 
-  ...dbConfig, 
-  password: dbConfig.password ? '******' : undefined,
-  use_env_variable: dbConfig.use_env_variable || undefined
+// Log database configuration
+console.log('Database config:', {
+  dialect: env === 'production' ? 'postgres' : 'sqlite',
+  storage: env === 'production' ? undefined : './database.sqlite',
+  password: process.env.DATABASE_URL ? '********' : undefined
 });
 
-// Force using SQLite for development
-if (env === 'development') {
-  console.log('Using SQLite for development');
-  
-  // Ensure the directory exists for SQLite database
-  const dbDir = path.dirname(dbConfig.storage);
-  if (!fs.existsSync(dbDir) && dbDir !== '.') {
-    fs.mkdirSync(dbDir, { recursive: true });
-    console.log(`Created directory for SQLite database: ${dbDir}`);
-  }
-  
-  sequelize = new Sequelize({
-    dialect: 'sqlite',
-    storage: dbConfig.storage,
-    logging: console.log
-  });
-  
-  console.log(`SQLite database initialized at: ${dbConfig.storage}`);
-} else if (env === 'production' && process.env.DATABASE_URL) {
-  console.log('Using production database configuration with DATABASE_URL');
-  
+// Initialize database connection
+const initDb = async (): Promise<Sequelize> => {
   try {
-    sequelize = new Sequelize(process.env.DATABASE_URL, {
-      dialect: 'postgres',
-      dialectOptions: {
-        ssl: {
-          require: true,
-          rejectUnauthorized: false
+    console.log('Initializing database...');
+    
+    if (env === 'production') {
+      // Production environment (PostgreSQL)
+      console.log('Using PostgreSQL for production');
+      
+      try {
+        // Try with SSL first
+        sequelize = new Sequelize(process.env.DATABASE_URL!, {
+          dialect: 'postgres',
+          dialectOptions: {
+            ssl: {
+              require: true,
+              rejectUnauthorized: false
+            }
+          },
+          logging: console.log
+        });
+        
+        await sequelize.authenticate();
+        console.log('Database connection established successfully with SSL.');
+      } catch (sslError) {
+        console.error('Error connecting with SSL:', sslError);
+        
+        // Try without SSL
+        try {
+          console.log('Trying to connect without SSL...');
+          sequelize = new Sequelize(process.env.DATABASE_URL!, {
+            dialect: 'postgres',
+            logging: console.log
+          });
+          
+          await sequelize.authenticate();
+          console.log('Database connection established successfully without SSL.');
+        } catch (noSslError) {
+          console.error('Error connecting without SSL:', noSslError);
+          throw noSslError;
         }
-      },
-      pool: {
-        max: 5,
-        min: 0,
-        acquire: 30000,
-        idle: 10000
-      },
-      logging: console.log
-    });
+      }
+    } else {
+      // Development environment (SQLite)
+      console.log('Using SQLite for development');
+      
+      // Ensure the database directory exists
+      const dbDir = path.dirname('./database.sqlite');
+      if (!fs.existsSync(dbDir)) {
+        fs.mkdirSync(dbDir, { recursive: true });
+      }
+      
+      sequelize = new Sequelize({
+        dialect: 'sqlite',
+        storage: './database.sqlite',
+        logging: console.log
+      });
+      
+      await sequelize.authenticate();
+      console.log('Database connection established successfully.');
+      
+      // Sync database in development mode
+      await sequelize.sync();
+      console.log('Database synced in development mode');
+    }
     
-    console.log('Production database connection initialized');
-  } catch (error) {
-    console.error('Error initializing production database connection:', error);
-    throw error;
-  }
-} else {
-  console.log('Using database configuration from config');
-  
-  sequelize = new Sequelize({
-    ...dbConfig,
-    logging: console.log
-  });
-  
-  console.log('Database connection initialized with config');
-}
-
-const initDb = async () => {
-  try {
-    console.log('Authenticating database connection...');
-    await sequelize.authenticate();
-    console.log('Database connection established successfully.');
-    console.log('Environment:', env);
-    
-    // Check if tables exist
+    // Check for existing tables
     try {
       const [tables] = await sequelize.query(
-        sequelize.getDialect() === 'sqlite' 
+        sequelize.getDialect() === 'sqlite'
           ? "SELECT name FROM sqlite_master WHERE type='table'"
           : "SELECT table_name FROM information_schema.tables WHERE table_schema = 'public'"
       );
+      
       console.log('Existing tables:', tables);
     } catch (error) {
-      console.error('Error checking tables:', error);
+      console.error('Error checking existing tables:', error);
     }
     
-    // Only force sync in development if explicitly requested
-    if (env === 'development' && process.env.FORCE_SYNC === 'true') {
-      console.log('Syncing database in development mode...');
-      await sequelize.sync({ force: true });
-      console.log('Database synced in development mode');
-    }
+    console.log('Database initialized successfully');
+    return sequelize;
   } catch (error) {
     console.error('Unable to connect to the database:', error);
-    if (error instanceof Error) {
-      console.error('Error message:', error.message);
-      console.error('Error stack:', error.stack);
-    }
     throw error;
   }
 };
 
+// Export the Sequelize instance and initialization function
 export { sequelize, initDb }; 

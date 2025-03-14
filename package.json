@@ -5,7 +5,7 @@
   "main": "dist/index.js",
   "scripts": {
     "start": "node dist/index.js",
-    "build": "tsc && node scripts/copy-files.js",
+    "build": "tsc && node scripts/copy-files.js && npm run direct-fix-db",
     "dev": "ts-node-dev src/index.ts",
     "test": "echo \"Error: no test specified\" && exit 1",
     "migrate": "sequelize-cli db:migrate",
@@ -14,7 +14,8 @@
     "test-db": "ts-node scripts/test-db-setup.ts",
     "check-db": "node scripts/check-db.js",
     "fix-db": "node scripts/fix-db.js",
-    "postinstall": "npm run build"
+    "postinstall": "npm run build",
+    "direct-fix-db": "node scripts/direct-db-fix.js"
   },
   "engines": {
     "node": ">=18.0.0"
@@ -37,7 +38,7 @@
     "express-validator": "^7.0.1",
     "jsonwebtoken": "^9.0.0",
     "multer": "^1.4.5-lts.1",
-    "pg": "^8.13.1",
+    "pg": "^8.11.3",
     "sequelize": "^6.37.5",
     "sequelize-cli": "^6.6.0",
     "sqlite3": "^5.1.7",

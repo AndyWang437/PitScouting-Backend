@@ -80,45 +80,34 @@ class Team extends Model {
         allowNull: true,
       },
       coralLevels: {
-        type: isSqlite ? DataTypes.TEXT : DataTypes.ARRAY(DataTypes.STRING),
-        defaultValue: isSqlite ? '[]' : [],
+        type: DataTypes.TEXT,
+        allowNull: true,
+        defaultValue: '[]',
         get() {
           const rawValue = this.getDataValue('coralLevels');
-          if (!rawValue) return isSqlite ? '[]' : [];
-          
-          if (isSqlite) {
-            // For SQLite, we return the raw string value
-            // The getCoralLevelsArray() method can be used to get the parsed array
-            return rawValue;
+          if (!rawValue) return [];
+          if (Array.isArray(rawValue)) return rawValue;
+          try {
+            return JSON.parse(rawValue);
+          } catch (e) {
+            console.error('Error parsing coralLevels:', e);
+            return [];
           }
-          
-          return rawValue;
         },
-        set(value: any) {
-          if (isSqlite) {
-            if (typeof value === 'string') {
-              // Store the string directly for SQLite
+        set(value: string[] | string) {
+          if (Array.isArray(value)) {
+            this.setDataValue('coralLevels', JSON.stringify(value));
+          } else if (typeof value === 'string') {
+            try {
+              // Try to parse it as JSON first
+              JSON.parse(value);
               this.setDataValue('coralLevels', value);
-            } else if (Array.isArray(value)) {
-              // Convert array to JSON string for SQLite
-              this.setDataValue('coralLevels', JSON.stringify(value));
-            } else {
-              this.setDataValue('coralLevels', '[]');
+            } catch (e) {
+              // If it's not valid JSON, store it as a JSON string
+              this.setDataValue('coralLevels', JSON.stringify([value]));
             }
           } else {
-            // PostgreSQL can handle arrays directly
-            if (typeof value === 'string') {
-              try {
-                // Parse string to array for PostgreSQL
-                const parsedValue = JSON.parse(value);
-                this.setDataValue('coralLevels', parsedValue);
-              } catch (error) {
-                console.error('Error parsing coralLevels for PostgreSQL:', error);
-                this.setDataValue('coralLevels', []);
-              }
-            } else {
-              this.setDataValue('coralLevels', value || []);
-            }
+            this.setDataValue('coralLevels', '[]');
           }
         }
       },

@@ -57,6 +57,11 @@ if (fs.existsSync('scripts/fix-db.js')) {
   copyFile('scripts/fix-db.js', 'dist/scripts/fix-db.js');
 }
 
+// Copy direct-db-fix.js to dist/scripts
+if (fs.existsSync('scripts/direct-db-fix.js')) {
+  copyFile('scripts/direct-db-fix.js', 'dist/scripts/direct-db-fix.js');
+}
+
 // Copy .sequelizerc file
 copyFile('.sequelizerc', 'dist/.sequelizerc');
 
