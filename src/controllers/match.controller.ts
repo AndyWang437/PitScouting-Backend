@@ -23,17 +23,75 @@ interface MatchRecord {
   updatedAt: Date;
 }
 
-// Helper function to check if matches table exists
+// Add this function at the top of the file, after imports
 const checkMatchesTable = async (): Promise<boolean> => {
   try {
+    const dialect = sequelize.getDialect();
     const [tables] = await sequelize.query(
-      sequelize.getDialect() === 'sqlite'
+      dialect === 'sqlite' 
         ? "SELECT name FROM sqlite_master WHERE type='table' AND name='matches'"
         : "SELECT table_name FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'matches'"
     );
-    return tables.length > 0;
+    
+    const tableExists = tables.length > 0;
+    console.log('Matches table exists:', tableExists);
+    
+    if (!tableExists) {
+      // If table doesn't exist, try to create it
+      console.log('Matches table does not exist, attempting to create it...');
+      try {
+        if (dialect === 'postgres') {
+          await sequelize.query(`
+            CREATE TABLE IF NOT EXISTS matches (
+              id SERIAL PRIMARY KEY,
+              "matchNumber" INTEGER NOT NULL,
+              "teamNumber" INTEGER NOT NULL,
+              "autoScoreCoral" BOOLEAN DEFAULT false,
+              "autoScoreAlgae" BOOLEAN DEFAULT false,
+              "autoStartingPosition" TEXT,
+              "teleopDealgifying" BOOLEAN DEFAULT false,
+              "teleopPreference" TEXT,
+              "scoringPreference" TEXT,
+              "coralLevels" TEXT DEFAULT '[]',
+              "endgameType" TEXT DEFAULT 'none',
+              "notes" TEXT DEFAULT '',
+              "createdAt" TIMESTAMP DEFAULT NOW(),
+              "updatedAt" TIMESTAMP DEFAULT NOW(),
+              UNIQUE("matchNumber", "teamNumber")
+            )
+          `);
+        } else {
+          await sequelize.query(`
+            CREATE TABLE IF NOT EXISTS matches (
+              id INTEGER PRIMARY KEY AUTOINCREMENT,
+              "matchNumber" INTEGER NOT NULL,
+              "teamNumber" INTEGER NOT NULL,
+              "autoScoreCoral" BOOLEAN DEFAULT 0,
+              "autoScoreAlgae" BOOLEAN DEFAULT 0,
+              "autoStartingPosition" TEXT,
+              "teleopDealgifying" BOOLEAN DEFAULT 0,
+              "teleopPreference" TEXT,
+              "scoringPreference" TEXT,
+              "coralLevels" TEXT DEFAULT '[]',
+              "endgameType" TEXT DEFAULT 'none',
+              "notes" TEXT DEFAULT '',
+              "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+              "updatedAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+              UNIQUE("matchNumber", "teamNumber")
+            )
+          `);
+        }
+        console.log('Matches table created successfully');
+        return true;
+      } catch (createError) {
+        console.error('Error creating matches table:', createError);
+        return false;
+      }
+    }
+    
+    return tableExists;
   } catch (error) {
-    console.error('Error checking matches table:', error);
+    console.error('Error checking if matches table exists:', error);
     return false;
   }
 };
@@ -413,76 +471,29 @@ export const getAllMatches = async (req: Request, res: Response): Promise<void> 
     
     // Try direct SQL approach
     try {
-      let query = 'SELECT * FROM matches';
-      const whereConditions = [];
-      
-      // Handle search filters
-      if (req.query.search) {
-        whereConditions.push(`("teamNumber"::text LIKE '%${req.query.search}%' OR "matchNumber"::text LIKE '%${req.query.search}%')`);
-      }
-      
-      if (req.query.teamNumber) {
-        whereConditions.push(`"teamNumber" = ${req.query.teamNumber}`);
-      }
-      
-      if (req.query.matchNumber) {
-        whereConditions.push(`"matchNumber" = ${req.query.matchNumber}`);
-      }
-      
-      if (req.query.endgameType) {
-        whereConditions.push(`"endgameType" = '${req.query.endgameType}'`);
-      }
-      
-      if (req.query.autoPosition) {
-        whereConditions.push(`"autoStartingPosition" = '${req.query.autoPosition}'`);
-      }
-      
-      if (req.query.teleopPreference) {
-        whereConditions.push(`"teleopPreference" = '${req.query.teleopPreference}'`);
-      }
-      
-      if (whereConditions.length > 0) {
-        query += ' WHERE ' + whereConditions.join(' AND ');
-      }
-      
-      // Add order by
-      query += ' ORDER BY "matchNumber" ASC, "teamNumber" ASC';
-      
-      console.log('SQL Query:', query);
-      const [matches] = await sequelize.query(query);
+      console.log('SQL Query: SELECT * FROM matches');
+      const [matches] = await sequelize.query('SELECT * FROM matches');
       console.log(`Found ${matches.length} matches`);
-      
-      // Process each match for SQLite array handling
-      const isSqlite = sequelize.getDialect() === 'sqlite';
-      for (const match of matches) {
-        const matchRecord = match as MatchRecord;
-        
-        // Parse coralLevels if it's a string (SQLite)
-        if (isSqlite && typeof matchRecord.coralLevels === 'string') {
-          try {
-            matchRecord.coralLevels = JSON.parse(matchRecord.coralLevels as unknown as string);
-            console.log(`Parsed coralLevels for match ${matchRecord.matchNumber}, team ${matchRecord.teamNumber}:`, matchRecord.coralLevels);
-          } catch (parseError) {
-            console.error(`Error parsing coralLevels for match ${matchRecord.matchNumber}, team ${matchRecord.teamNumber}:`, parseError);
-            matchRecord.coralLevels = [];
-          }
-        }
-      }
-      
-      res.json(matches);
+      res.status(200).json(matches);
     } catch (sqlError) {
       console.error('SQL error fetching matches:', sqlError);
-      throw sqlError;
+      
+      // Try with Sequelize ORM as fallback
+      try {
+        console.log('Trying to fetch matches with Sequelize ORM');
+        const matches = await Match.findAll();
+        console.log(`Found ${matches.length} matches with Sequelize`);
+        res.status(200).json(matches);
+      } catch (ormError) {
+        console.error('Error fetching matches with Sequelize:', ormError);
+        throw sqlError; // Re-throw the original error
+      }
     }
   } catch (error: any) {
     console.error('Error fetching matches:', error);
-    console.error('Error details:', error.original || error);
-    console.error('Error stack:', error.stack);
-    res.status(400).json({ 
+    res.status(500).json({ 
       error: 'Error fetching matches', 
-      message: error.message,
-      details: error.original?.detail || error.original?.message || error.message,
-      stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
+      details: error.message || 'Unknown error'
     });
   }
 }; 

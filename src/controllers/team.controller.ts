@@ -32,17 +32,85 @@ interface TeamRecord {
   updatedAt: Date;
 }
 
-// Helper function to check if teams table exists
+// Add this function at the top of the file, after imports
 const checkTeamsTable = async (): Promise<boolean> => {
   try {
+    const dialect = sequelize.getDialect();
     const [tables] = await sequelize.query(
-      sequelize.getDialect() === 'sqlite'
+      dialect === 'sqlite' 
         ? "SELECT name FROM sqlite_master WHERE type='table' AND name='teams'"
         : "SELECT table_name FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'teams'"
     );
-    return tables.length > 0;
+    
+    const tableExists = tables.length > 0;
+    console.log('Teams table exists:', tableExists);
+    
+    if (!tableExists) {
+      // If table doesn't exist, try to create it
+      console.log('Teams table does not exist, attempting to create it...');
+      try {
+        if (dialect === 'postgres') {
+          await sequelize.query(`
+            CREATE TABLE IF NOT EXISTS teams (
+              id SERIAL PRIMARY KEY,
+              "teamNumber" INTEGER NOT NULL,
+              "autoScoreCoral" BOOLEAN DEFAULT false,
+              "autoScoreAlgae" BOOLEAN DEFAULT false,
+              "mustStartSpecificPosition" BOOLEAN DEFAULT false,
+              "autoStartingPosition" TEXT,
+              "teleopDealgifying" BOOLEAN DEFAULT false,
+              "teleopPreference" TEXT,
+              "scoringPreference" TEXT,
+              "coralLevels" TEXT DEFAULT '[]',
+              "endgameType" TEXT DEFAULT 'none',
+              "robotWidth" FLOAT,
+              "robotLength" FLOAT,
+              "robotHeight" FLOAT,
+              "robotWeight" FLOAT,
+              "drivetrainType" TEXT,
+              "notes" TEXT DEFAULT '',
+              "imageUrl" TEXT,
+              "createdAt" TIMESTAMP DEFAULT NOW(),
+              "updatedAt" TIMESTAMP DEFAULT NOW()
+            )
+          `);
+        } else {
+          await sequelize.query(`
+            CREATE TABLE IF NOT EXISTS teams (
+              id INTEGER PRIMARY KEY AUTOINCREMENT,
+              "teamNumber" INTEGER NOT NULL UNIQUE,
+              "autoScoreCoral" BOOLEAN DEFAULT 0,
+              "autoScoreAlgae" BOOLEAN DEFAULT 0,
+              "mustStartSpecificPosition" BOOLEAN DEFAULT 0,
+              "autoStartingPosition" TEXT,
+              "teleopDealgifying" BOOLEAN DEFAULT 0,
+              "teleopPreference" TEXT,
+              "scoringPreference" TEXT,
+              "coralLevels" TEXT DEFAULT '[]',
+              "endgameType" TEXT DEFAULT 'none',
+              "robotWidth" REAL,
+              "robotLength" REAL,
+              "robotHeight" REAL,
+              "robotWeight" REAL,
+              "drivetrainType" TEXT,
+              "notes" TEXT DEFAULT '',
+              "imageUrl" TEXT,
+              "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+              "updatedAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+            )
+          `);
+        }
+        console.log('Teams table created successfully');
+        return true;
+      } catch (createError) {
+        console.error('Error creating teams table:', createError);
+        return false;
+      }
+    }
+    
+    return tableExists;
   } catch (error) {
-    console.error('Error checking teams table:', error);
+    console.error('Error checking if teams table exists:', error);
     return false;
   }
 };
@@ -514,84 +582,29 @@ export const getAllTeams = async (req: Request, res: Response): Promise<void> =>
     
     // Try direct SQL approach
     try {
-      let query = 'SELECT * FROM teams';
-      const whereConditions = [];
-      
-      // Handle search filters
-      if (req.query.search) {
-        whereConditions.push(`"teamNumber"::text LIKE '%${req.query.search}%'`);
-      }
-      
-      if (req.query.drivetrain) {
-        whereConditions.push(`"drivetrainType" ILIKE '%${req.query.drivetrain}%'`);
-      }
-      
-      if (req.query.endgameType) {
-        whereConditions.push(`"endgameType" = '${req.query.endgameType}'`);
-      }
-      
-      if (req.query.autoPosition) {
-        whereConditions.push(`"autoStartingPosition" = '${req.query.autoPosition}'`);
-      }
-      
-      if (req.query.teleopPreference) {
-        whereConditions.push(`"teleopPreference" = '${req.query.teleopPreference}'`);
-      }
-      
-      if (whereConditions.length > 0) {
-        query += ' WHERE ' + whereConditions.join(' AND ');
-      }
-      
-      console.log('SQL Query:', query);
-      const [teams] = await sequelize.query(query);
+      console.log('SQL Query: SELECT * FROM teams');
+      const [teams] = await sequelize.query('SELECT * FROM teams');
       console.log(`Found ${teams.length} teams`);
-      
-      const isSqlite = sequelize.getDialect() === 'sqlite';
-      
-      // Process each team
-      for (const team of teams) {
-        const teamRecord = team as TeamRecord;
-        
-        // Parse coralLevels if it's a string (SQLite)
-        if (isSqlite && typeof teamRecord.coralLevels === 'string') {
-          try {
-            teamRecord.coralLevels = JSON.parse(teamRecord.coralLevels as unknown as string);
-            console.log(`Parsed coralLevels for team ${teamRecord.teamNumber}:`, teamRecord.coralLevels);
-          } catch (parseError) {
-            console.error(`Error parsing coralLevels for team ${teamRecord.teamNumber}:`, parseError);
-            teamRecord.coralLevels = [];
-          }
-        }
-        
-        // Verify image exists
-        if (teamRecord.imageUrl) {
-          const filename = path.basename(teamRecord.imageUrl);
-          const uploadsDir = process.env.NODE_ENV === 'production'
-            ? '/opt/render/project/src/uploads'
-            : path.join(__dirname, '../../uploads');
-          const filePath = path.join(uploadsDir, filename);
-          
-          if (!fs.existsSync(filePath)) {
-            console.warn(`Image file not found: ${filePath}`);
-            teamRecord.imageUrl = null;
-          }
-        }
-      }
-      
-      res.json(teams);
+      res.status(200).json(teams);
     } catch (sqlError) {
       console.error('SQL error fetching teams:', sqlError);
-      throw sqlError;
+      
+      // Try with Sequelize ORM as fallback
+      try {
+        console.log('Trying to fetch teams with Sequelize ORM');
+        const teams = await Team.findAll();
+        console.log(`Found ${teams.length} teams with Sequelize`);
+        res.status(200).json(teams);
+      } catch (ormError) {
+        console.error('Error fetching teams with Sequelize:', ormError);
+        throw sqlError; // Re-throw the original error
+      }
     }
   } catch (error: any) {
     console.error('Error fetching teams:', error);
-    console.error('Error details:', error.original || error);
-    console.error('Error stack:', error.stack);
-    res.status(400).json({ 
+    res.status(500).json({ 
       error: 'Error fetching teams', 
-      message: error.message,
-      details: error.original?.detail || error.original?.message || error.message,
-      stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
+      details: error.message || 'Unknown error'
     });
   }
 }; 

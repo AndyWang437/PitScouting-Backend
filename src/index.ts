@@ -73,21 +73,9 @@ app.get('/', (_req: Request, res: Response) => {
   });
 });
 
-// Health check route
-app.get('/health', (_req: Request, res: Response) => {
-  res.json({ 
-    status: 'ok',
-    timestamp: new Date().toISOString(),
-    environment: env
-  });
-});
-
-// Database status route
-app.get('/db-status', async (_req: Request, res: Response) => {
+// Add this function before the app.get('/health') endpoint
+const checkDatabaseTables = async () => {
   try {
-    await sequelize.authenticate();
-    
-    // Check if tables exist
     const dialect = sequelize.getDialect();
     const [tables] = await sequelize.query(
       dialect === 'sqlite' 
@@ -95,52 +83,75 @@ app.get('/db-status', async (_req: Request, res: Response) => {
         : "SELECT table_name FROM information_schema.tables WHERE table_schema = 'public'"
     );
     
-    // Check if teams table exists and has the right structure
-    let teamsTableInfo = [];
-    if (tables.includes('teams')) {
-      const [columns] = await sequelize.query("SELECT column_name, data_type FROM information_schema.columns WHERE table_name = 'teams'");
-      teamsTableInfo = columns;
+    const tableNames = dialect === 'sqlite'
+      ? tables.map((t: any) => t.name)
+      : tables.map((t: any) => t.table_name);
+    
+    console.log('Database tables:', tableNames);
+    
+    const requiredTables = ['teams', 'matches', 'users'];
+    const missingTables = requiredTables.filter(table => !tableNames.includes(table));
+    
+    if (missingTables.length > 0) {
+      console.error('Missing required tables:', missingTables);
+      return {
+        status: 'error',
+        message: 'Missing required tables',
+        details: {
+          missingTables,
+          existingTables: tableNames
+        }
+      };
     }
     
-    // Check if matches table exists and has the right structure
-    let matchesTableInfo = [];
-    if (tables.includes('matches')) {
-      const [columns] = await sequelize.query("SELECT column_name, data_type FROM information_schema.columns WHERE table_name = 'matches'");
-      matchesTableInfo = columns;
+    // Check if tables have data
+    const tableData: Record<string, number> = {};
+    
+    for (const table of requiredTables) {
+      try {
+        const [result] = await sequelize.query(`SELECT COUNT(*) as count FROM ${table}`);
+        const count = (result[0] as { count: string | number }).count;
+        tableData[table] = typeof count === 'number' ? count : parseInt(count);
+      } catch (countError) {
+        console.error(`Error counting rows in ${table}:`, countError);
+        tableData[table] = -1; // Error indicator
+      }
     }
     
-    // Check if users table exists and has the right structure
-    let usersTableInfo = [];
-    if (tables.includes('users')) {
-      const [columns] = await sequelize.query("SELECT column_name, data_type FROM information_schema.columns WHERE table_name = 'users'");
-      usersTableInfo = columns;
-    }
-    
-    // Check if admin user exists
-    let adminUserExists = false;
-    if (tables.includes('users')) {
-      const [users] = await sequelize.query("SELECT * FROM users WHERE email = '1334admin@gmail.com'");
-      adminUserExists = users.length > 0;
-    }
-    
-    res.json({ 
-      status: 'connected',
-      dialect: dialect,
-      tables: tables,
-      teamsTableInfo,
-      matchesTableInfo,
-      usersTableInfo,
-      adminUserExists,
-      timestamp: new Date().toISOString(),
-      databaseUrl: process.env.DATABASE_URL ? `${process.env.DATABASE_URL.substring(0, 25)}...` : 'Not set'
-    });
+    return {
+      status: 'ok',
+      message: 'All required tables exist',
+      details: {
+        tables: tableNames,
+        counts: tableData
+      }
+    };
   } catch (error) {
-    res.status(500).json({ 
+    console.error('Error checking database tables:', error);
+    return {
       status: 'error',
-      message: error instanceof Error ? error.message : 'Unknown error',
-      dialect: sequelize.getDialect(),
-      timestamp: new Date().toISOString(),
-      databaseUrl: process.env.DATABASE_URL ? `${process.env.DATABASE_URL.substring(0, 25)}...` : 'Not set'
+      message: 'Error checking database tables',
+      details: error instanceof Error ? error.message : String(error)
+    };
+  }
+};
+
+// Update the health check endpoint
+app.get('/health', (req, res) => {
+  res.status(200).json({ status: 'ok', message: 'Server is running' });
+});
+
+// Add a more detailed database status endpoint
+app.get('/db-status', async (req, res) => {
+  try {
+    const dbStatus = await checkDatabaseTables();
+    res.status(dbStatus.status === 'ok' ? 200 : 500).json(dbStatus);
+  } catch (error) {
+    console.error('Error checking database status:', error);
+    res.status(500).json({
+      status: 'error',
+      message: 'Error checking database status',
+      details: error instanceof Error ? error.message : String(error)
     });
   }
 });

@@ -11,16 +11,25 @@ async function fixDatabase() {
   try {
     if (process.env.NODE_ENV === 'production') {
       console.log('Using production database configuration');
-      sequelize = new Sequelize(process.env.DATABASE_URL, {
-        dialect: 'postgres',
-        dialectOptions: {
-          ssl: {
-            require: true,
-            rejectUnauthorized: false
-          }
-        },
-        logging: console.log
-      });
+      // Try different SSL configurations if the default one fails
+      try {
+        sequelize = new Sequelize(process.env.DATABASE_URL, {
+          dialect: 'postgres',
+          dialectOptions: {
+            ssl: {
+              require: true,
+              rejectUnauthorized: false
+            }
+          },
+          logging: console.log
+        });
+      } catch (sslError) {
+        console.error('Error connecting with SSL, trying without SSL:', sslError);
+        sequelize = new Sequelize(process.env.DATABASE_URL, {
+          dialect: 'postgres',
+          logging: console.log
+        });
+      }
     } else {
       console.log('Using development database configuration');
       sequelize = new Sequelize({
@@ -52,13 +61,25 @@ async function fixDatabase() {
         console.error('Error dropping tables:', dropError);
         // Continue anyway, as we'll create the tables
       }
+      
+      // Verify that tables are actually dropped
+      try {
+        const [tables] = await sequelize.query(
+          "SELECT table_name FROM information_schema.tables WHERE table_schema = 'public'"
+        );
+        console.log('Tables after drop:', tables.map(t => t.table_name));
+      } catch (checkError) {
+        console.error('Error checking tables after drop:', checkError);
+      }
     }
     
     // Create teams table
     console.log('Creating teams table...');
     if (dialect === 'postgres') {
-      try {
-        await sequelize.query(`
+      // Try multiple approaches to create the teams table
+      const createTeamsAttempts = [
+        // Attempt 1: Standard approach with TEXT[] for coralLevels
+        `
           CREATE TABLE teams (
             id SERIAL PRIMARY KEY,
             "teamNumber" INTEGER NOT NULL UNIQUE,
@@ -81,40 +102,127 @@ async function fixDatabase() {
             "createdAt" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
             "updatedAt" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
           )
-        `);
-        console.log('Teams table created successfully');
-      } catch (createError) {
-        console.error('Error creating teams table:', createError);
-        // Try a simpler approach
+        `,
+        // Attempt 2: Simplified schema
+        `
+          CREATE TABLE teams (
+            id SERIAL PRIMARY KEY,
+            "teamNumber" INTEGER NOT NULL,
+            "autoScoreCoral" BOOLEAN,
+            "autoScoreAlgae" BOOLEAN,
+            "mustStartSpecificPosition" BOOLEAN,
+            "autoStartingPosition" TEXT,
+            "teleopDealgifying" BOOLEAN,
+            "teleopPreference" TEXT,
+            "scoringPreference" TEXT,
+            "coralLevels" TEXT[],
+            "endgameType" TEXT,
+            "robotWidth" FLOAT,
+            "robotLength" FLOAT,
+            "robotHeight" FLOAT,
+            "robotWeight" FLOAT,
+            "drivetrainType" TEXT,
+            "notes" TEXT,
+            "imageUrl" TEXT,
+            "createdAt" TIMESTAMP,
+            "updatedAt" TIMESTAMP
+          )
+        `,
+        // Attempt 3: Raw SQL approach
+        `
+          CREATE TABLE public.teams (
+            id serial NOT NULL,
+            "teamNumber" int4 NOT NULL,
+            "autoScoreCoral" bool NULL,
+            "autoScoreAlgae" bool NULL,
+            "mustStartSpecificPosition" bool NULL,
+            "autoStartingPosition" text NULL,
+            "teleopDealgifying" bool NULL,
+            "teleopPreference" text NULL,
+            "scoringPreference" text NULL,
+            "coralLevels" _text NULL,
+            "endgameType" text NULL,
+            "robotWidth" float8 NULL,
+            "robotLength" float8 NULL,
+            "robotHeight" float8 NULL,
+            "robotWeight" float8 NULL,
+            "drivetrainType" text NULL,
+            notes text NULL,
+            "imageUrl" text NULL,
+            "createdAt" timestamp NULL,
+            "updatedAt" timestamp NULL,
+            CONSTRAINT teams_pkey PRIMARY KEY (id),
+            CONSTRAINT teams_teamnumber_key UNIQUE ("teamNumber")
+          )
+        `,
+        // Attempt 4: Using JSON instead of TEXT[] for coralLevels
+        `
+          CREATE TABLE teams (
+            id SERIAL PRIMARY KEY,
+            "teamNumber" INTEGER NOT NULL UNIQUE,
+            "autoScoreCoral" BOOLEAN DEFAULT false,
+            "autoScoreAlgae" BOOLEAN DEFAULT false,
+            "mustStartSpecificPosition" BOOLEAN DEFAULT false,
+            "autoStartingPosition" TEXT,
+            "teleopDealgifying" BOOLEAN DEFAULT false,
+            "teleopPreference" TEXT,
+            "scoringPreference" TEXT,
+            "coralLevels" JSON DEFAULT '[]',
+            "endgameType" TEXT DEFAULT 'none',
+            "robotWidth" FLOAT,
+            "robotLength" FLOAT,
+            "robotHeight" FLOAT,
+            "robotWeight" FLOAT,
+            "drivetrainType" TEXT,
+            "notes" TEXT DEFAULT '',
+            "imageUrl" TEXT,
+            "createdAt" TIMESTAMP DEFAULT NOW(),
+            "updatedAt" TIMESTAMP DEFAULT NOW()
+          )
+        `,
+        // Attempt 5: Using TEXT for coralLevels (will be parsed in the controller)
+        `
+          CREATE TABLE teams (
+            id SERIAL PRIMARY KEY,
+            "teamNumber" INTEGER NOT NULL UNIQUE,
+            "autoScoreCoral" BOOLEAN DEFAULT false,
+            "autoScoreAlgae" BOOLEAN DEFAULT false,
+            "mustStartSpecificPosition" BOOLEAN DEFAULT false,
+            "autoStartingPosition" TEXT,
+            "teleopDealgifying" BOOLEAN DEFAULT false,
+            "teleopPreference" TEXT,
+            "scoringPreference" TEXT,
+            "coralLevels" TEXT DEFAULT '[]',
+            "endgameType" TEXT DEFAULT 'none',
+            "robotWidth" FLOAT,
+            "robotLength" FLOAT,
+            "robotHeight" FLOAT,
+            "robotWeight" FLOAT,
+            "drivetrainType" TEXT,
+            "notes" TEXT DEFAULT '',
+            "imageUrl" TEXT,
+            "createdAt" TIMESTAMP DEFAULT NOW(),
+            "updatedAt" TIMESTAMP DEFAULT NOW()
+          )
+        `
+      ];
+      
+      let teamsTableCreated = false;
+      
+      for (let i = 0; i < createTeamsAttempts.length; i++) {
         try {
-          await sequelize.query(`
-            CREATE TABLE IF NOT EXISTS teams (
-              id SERIAL PRIMARY KEY,
-              "teamNumber" INTEGER NOT NULL,
-              "autoScoreCoral" BOOLEAN,
-              "autoScoreAlgae" BOOLEAN,
-              "mustStartSpecificPosition" BOOLEAN,
-              "autoStartingPosition" TEXT,
-              "teleopDealgifying" BOOLEAN,
-              "teleopPreference" TEXT,
-              "scoringPreference" TEXT,
-              "coralLevels" TEXT[],
-              "endgameType" TEXT,
-              "robotWidth" FLOAT,
-              "robotLength" FLOAT,
-              "robotHeight" FLOAT,
-              "robotWeight" FLOAT,
-              "drivetrainType" TEXT,
-              "notes" TEXT,
-              "imageUrl" TEXT,
-              "createdAt" TIMESTAMP,
-              "updatedAt" TIMESTAMP
-            )
-          `);
-          console.log('Teams table created with simplified schema');
-        } catch (simpleCreateError) {
-          console.error('Error creating teams table with simplified schema:', simpleCreateError);
+          console.log(`Attempting to create teams table (attempt ${i + 1})...`);
+          await sequelize.query(createTeamsAttempts[i]);
+          console.log(`Teams table created successfully (attempt ${i + 1})`);
+          teamsTableCreated = true;
+          break;
+        } catch (createError) {
+          console.error(`Error creating teams table (attempt ${i + 1}):`, createError);
         }
+      }
+      
+      if (!teamsTableCreated) {
+        console.error('All attempts to create teams table failed!');
       }
     } else {
       await sequelize.query(`
@@ -147,8 +255,10 @@ async function fixDatabase() {
     // Create matches table
     console.log('Creating matches table...');
     if (dialect === 'postgres') {
-      try {
-        await sequelize.query(`
+      // Try multiple approaches to create the matches table
+      const createMatchesAttempts = [
+        // Attempt 1: Standard approach with TEXT[] for coralLevels
+        `
           CREATE TABLE matches (
             id SERIAL PRIMARY KEY,
             "matchNumber" INTEGER NOT NULL,
@@ -166,34 +276,84 @@ async function fixDatabase() {
             "updatedAt" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
             UNIQUE("matchNumber", "teamNumber")
           )
-        `);
-        console.log('Matches table created successfully');
-      } catch (createError) {
-        console.error('Error creating matches table:', createError);
-        // Try a simpler approach
+        `,
+        // Attempt 2: Simplified schema
+        `
+          CREATE TABLE matches (
+            id SERIAL PRIMARY KEY,
+            "matchNumber" INTEGER NOT NULL,
+            "teamNumber" INTEGER NOT NULL,
+            "autoScoreCoral" BOOLEAN,
+            "autoScoreAlgae" BOOLEAN,
+            "autoStartingPosition" TEXT,
+            "teleopDealgifying" BOOLEAN,
+            "teleopPreference" TEXT,
+            "scoringPreference" TEXT,
+            "coralLevels" TEXT[],
+            "endgameType" TEXT,
+            "notes" TEXT,
+            "createdAt" TIMESTAMP,
+            "updatedAt" TIMESTAMP
+          )
+        `,
+        // Attempt 3: Using JSON instead of TEXT[] for coralLevels
+        `
+          CREATE TABLE matches (
+            id SERIAL PRIMARY KEY,
+            "matchNumber" INTEGER NOT NULL,
+            "teamNumber" INTEGER NOT NULL,
+            "autoScoreCoral" BOOLEAN DEFAULT false,
+            "autoScoreAlgae" BOOLEAN DEFAULT false,
+            "autoStartingPosition" TEXT,
+            "teleopDealgifying" BOOLEAN DEFAULT false,
+            "teleopPreference" TEXT,
+            "scoringPreference" TEXT,
+            "coralLevels" JSON DEFAULT '[]',
+            "endgameType" TEXT DEFAULT 'none',
+            "notes" TEXT DEFAULT '',
+            "createdAt" TIMESTAMP DEFAULT NOW(),
+            "updatedAt" TIMESTAMP DEFAULT NOW(),
+            UNIQUE("matchNumber", "teamNumber")
+          )
+        `,
+        // Attempt 4: Using TEXT for coralLevels (will be parsed in the controller)
+        `
+          CREATE TABLE matches (
+            id SERIAL PRIMARY KEY,
+            "matchNumber" INTEGER NOT NULL,
+            "teamNumber" INTEGER NOT NULL,
+            "autoScoreCoral" BOOLEAN DEFAULT false,
+            "autoScoreAlgae" BOOLEAN DEFAULT false,
+            "autoStartingPosition" TEXT,
+            "teleopDealgifying" BOOLEAN DEFAULT false,
+            "teleopPreference" TEXT,
+            "scoringPreference" TEXT,
+            "coralLevels" TEXT DEFAULT '[]',
+            "endgameType" TEXT DEFAULT 'none',
+            "notes" TEXT DEFAULT '',
+            "createdAt" TIMESTAMP DEFAULT NOW(),
+            "updatedAt" TIMESTAMP DEFAULT NOW(),
+            UNIQUE("matchNumber", "teamNumber")
+          )
+        `
+      ];
+      
+      let matchesTableCreated = false;
+      
+      for (let i = 0; i < createMatchesAttempts.length; i++) {
         try {
-          await sequelize.query(`
-            CREATE TABLE IF NOT EXISTS matches (
-              id SERIAL PRIMARY KEY,
-              "matchNumber" INTEGER NOT NULL,
-              "teamNumber" INTEGER NOT NULL,
-              "autoScoreCoral" BOOLEAN,
-              "autoScoreAlgae" BOOLEAN,
-              "autoStartingPosition" TEXT,
-              "teleopDealgifying" BOOLEAN,
-              "teleopPreference" TEXT,
-              "scoringPreference" TEXT,
-              "coralLevels" TEXT[],
-              "endgameType" TEXT,
-              "notes" TEXT,
-              "createdAt" TIMESTAMP,
-              "updatedAt" TIMESTAMP
-            )
-          `);
-          console.log('Matches table created with simplified schema');
-        } catch (simpleCreateError) {
-          console.error('Error creating matches table with simplified schema:', simpleCreateError);
+          console.log(`Attempting to create matches table (attempt ${i + 1})...`);
+          await sequelize.query(createMatchesAttempts[i]);
+          console.log(`Matches table created successfully (attempt ${i + 1})`);
+          matchesTableCreated = true;
+          break;
+        } catch (createError) {
+          console.error(`Error creating matches table (attempt ${i + 1}):`, createError);
         }
+      }
+      
+      if (!matchesTableCreated) {
+        console.error('All attempts to create matches table failed!');
       }
     } else {
       await sequelize.query(`
@@ -221,8 +381,10 @@ async function fixDatabase() {
     // Create users table
     console.log('Creating users table...');
     if (dialect === 'postgres') {
-      try {
-        await sequelize.query(`
+      // Try multiple approaches to create the users table
+      const createUsersAttempts = [
+        // Attempt 1: Standard approach
+        `
           CREATE TABLE users (
             id SERIAL PRIMARY KEY,
             name VARCHAR(255) NOT NULL,
@@ -232,27 +394,49 @@ async function fixDatabase() {
             "createdAt" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
             "updatedAt" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
           )
-        `);
-        console.log('Users table created successfully');
-      } catch (createError) {
-        console.error('Error creating users table:', createError);
-        // Try a simpler approach
+        `,
+        // Attempt 2: Simplified schema
+        `
+          CREATE TABLE users (
+            id SERIAL PRIMARY KEY,
+            name TEXT NOT NULL,
+            email TEXT NOT NULL,
+            password TEXT NOT NULL,
+            "teamNumber" INTEGER NOT NULL,
+            "createdAt" TIMESTAMP,
+            "updatedAt" TIMESTAMP
+          )
+        `,
+        // Attempt 3: Even simpler schema
+        `
+          CREATE TABLE users (
+            id SERIAL PRIMARY KEY,
+            name TEXT NOT NULL,
+            email TEXT NOT NULL,
+            password TEXT NOT NULL,
+            "teamNumber" INTEGER NOT NULL,
+            "createdAt" TIMESTAMP DEFAULT NOW(),
+            "updatedAt" TIMESTAMP DEFAULT NOW()
+          )
+        `
+      ];
+      
+      let usersTableCreated = false;
+      
+      for (let i = 0; i < createUsersAttempts.length; i++) {
         try {
-          await sequelize.query(`
-            CREATE TABLE IF NOT EXISTS users (
-              id SERIAL PRIMARY KEY,
-              name TEXT NOT NULL,
-              email TEXT NOT NULL,
-              password TEXT NOT NULL,
-              "teamNumber" INTEGER NOT NULL,
-              "createdAt" TIMESTAMP,
-              "updatedAt" TIMESTAMP
-            )
-          `);
-          console.log('Users table created with simplified schema');
-        } catch (simpleCreateError) {
-          console.error('Error creating users table with simplified schema:', simpleCreateError);
+          console.log(`Attempting to create users table (attempt ${i + 1})...`);
+          await sequelize.query(createUsersAttempts[i]);
+          console.log(`Users table created successfully (attempt ${i + 1})`);
+          usersTableCreated = true;
+          break;
+        } catch (createError) {
+          console.error(`Error creating users table (attempt ${i + 1}):`, createError);
         }
+      }
+      
+      if (!usersTableCreated) {
+        console.error('All attempts to create users table failed!');
       }
     } else {
       await sequelize.query(`
@@ -286,39 +470,37 @@ async function fixDatabase() {
     
     if (!teamsExists) {
       console.error('Teams table was not created successfully!');
-      // Try one more approach with raw SQL
+      // Try one more approach with direct SQL
       if (dialect === 'postgres') {
         try {
-          console.log('Trying one more approach to create teams table...');
+          console.log('Trying direct SQL approach to create teams table...');
           await sequelize.query(`
-            CREATE TABLE public.teams (
-              id serial NOT NULL,
-              "teamNumber" int4 NOT NULL,
-              "autoScoreCoral" bool NULL,
-              "autoScoreAlgae" bool NULL,
-              "mustStartSpecificPosition" bool NULL,
-              "autoStartingPosition" text NULL,
-              "teleopDealgifying" bool NULL,
-              "teleopPreference" text NULL,
-              "scoringPreference" text NULL,
-              "coralLevels" _text NULL,
-              "endgameType" text NULL,
-              "robotWidth" float8 NULL,
-              "robotLength" float8 NULL,
-              "robotHeight" float8 NULL,
-              "robotWeight" float8 NULL,
-              "drivetrainType" text NULL,
-              notes text NULL,
-              "imageUrl" text NULL,
-              "createdAt" timestamp NULL,
-              "updatedAt" timestamp NULL,
-              CONSTRAINT teams_pkey PRIMARY KEY (id),
-              CONSTRAINT teams_teamnumber_key UNIQUE ("teamNumber")
-            );
+            CREATE TABLE IF NOT EXISTS teams (
+              id SERIAL PRIMARY KEY,
+              "teamNumber" INTEGER NOT NULL,
+              "autoScoreCoral" BOOLEAN DEFAULT false,
+              "autoScoreAlgae" BOOLEAN DEFAULT false,
+              "mustStartSpecificPosition" BOOLEAN DEFAULT false,
+              "autoStartingPosition" TEXT,
+              "teleopDealgifying" BOOLEAN DEFAULT false,
+              "teleopPreference" TEXT,
+              "scoringPreference" TEXT,
+              "coralLevels" TEXT DEFAULT '[]',
+              "endgameType" TEXT DEFAULT 'none',
+              "robotWidth" FLOAT,
+              "robotLength" FLOAT,
+              "robotHeight" FLOAT,
+              "robotWeight" FLOAT,
+              "drivetrainType" TEXT,
+              "notes" TEXT DEFAULT '',
+              "imageUrl" TEXT,
+              "createdAt" TIMESTAMP DEFAULT NOW(),
+              "updatedAt" TIMESTAMP DEFAULT NOW()
+            )
           `);
-          console.log('Teams table created with raw SQL approach');
-        } catch (rawSqlError) {
-          console.error('Error creating teams table with raw SQL:', rawSqlError);
+          console.log('Teams table created with direct SQL approach');
+        } catch (directSqlError) {
+          console.error('Error creating teams table with direct SQL:', directSqlError);
         }
       }
     }
@@ -360,6 +542,73 @@ async function fixDatabase() {
     );
     
     console.log('Tables after fix:', tablesAfter);
+    
+    // Verify that the tables have the correct structure
+    if (dialect === 'postgres') {
+      try {
+        console.log('Verifying table structure...');
+        
+        // Check teams table structure
+        const [teamsColumns] = await sequelize.query(`
+          SELECT column_name, data_type 
+          FROM information_schema.columns 
+          WHERE table_name = 'teams' AND table_schema = 'public'
+        `);
+        console.log('Teams table columns:', teamsColumns);
+        
+        // Check matches table structure
+        const [matchesColumns] = await sequelize.query(`
+          SELECT column_name, data_type 
+          FROM information_schema.columns 
+          WHERE table_name = 'matches' AND table_schema = 'public'
+        `);
+        console.log('Matches table columns:', matchesColumns);
+        
+        // Check users table structure
+        const [usersColumns] = await sequelize.query(`
+          SELECT column_name, data_type 
+          FROM information_schema.columns 
+          WHERE table_name = 'users' AND table_schema = 'public'
+        `);
+        console.log('Users table columns:', usersColumns);
+        
+        // Check if coralLevels column exists and its type
+        const coralLevelsInTeams = teamsColumns.find(col => col.column_name === 'coralLevels');
+        const coralLevelsInMatches = matchesColumns.find(col => col.column_name === 'coralLevels');
+        
+        console.log('coralLevels column in teams:', coralLevelsInTeams);
+        console.log('coralLevels column in matches:', coralLevelsInMatches);
+        
+        // If coralLevels is not an array type, try to alter the table
+        if (coralLevelsInTeams && !coralLevelsInTeams.data_type.includes('ARRAY')) {
+          console.log('coralLevels in teams is not an array type, attempting to fix...');
+          try {
+            await sequelize.query(`
+              ALTER TABLE teams 
+              ALTER COLUMN "coralLevels" TYPE TEXT[] USING "coralLevels"::TEXT[]
+            `);
+            console.log('Fixed coralLevels column in teams table');
+          } catch (alterError) {
+            console.error('Error altering coralLevels column in teams:', alterError);
+          }
+        }
+        
+        if (coralLevelsInMatches && !coralLevelsInMatches.data_type.includes('ARRAY')) {
+          console.log('coralLevels in matches is not an array type, attempting to fix...');
+          try {
+            await sequelize.query(`
+              ALTER TABLE matches 
+              ALTER COLUMN "coralLevels" TYPE TEXT[] USING "coralLevels"::TEXT[]
+            `);
+            console.log('Fixed coralLevels column in matches table');
+          } catch (alterError) {
+            console.error('Error altering coralLevels column in matches:', alterError);
+          }
+        }
+      } catch (verifyError) {
+        console.error('Error verifying table structure:', verifyError);
+      }
+    }
     
     // Close the connection
     await sequelize.close();
