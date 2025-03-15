@@ -10,6 +10,8 @@ import authRoutes from './routes/auth';
 import teamRoutes from './routes/teams';
 import matchRoutes from './routes/matches';
 import testRoutes from './routes/test-routes';
+import imageRoutes from './routes/image-routes';
+import directFixRoutes from './routes/direct-fix';
 import { initDb } from './db/init';
 import { setupDatabase } from './db/setup';
 
@@ -32,13 +34,17 @@ app.options('*', cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// Set up static file serving for uploads
-const uploadsDir = path.join(__dirname, '..', 'uploads');
+// Determine uploads directory
+const uploadsDir = process.env.NODE_ENV === 'production'
+  ? '/opt/render/project/src/uploads'
+  : path.join(__dirname, '../uploads');
+
 console.log('Uploads directory:', uploadsDir);
 
 // Ensure uploads directory exists
 if (!fs.existsSync(uploadsDir)) {
   fs.mkdirSync(uploadsDir, { recursive: true });
+  console.log('Created uploads directory');
 }
 
 // Serve files from the uploads directory
@@ -46,6 +52,21 @@ app.use('/uploads', express.static(uploadsDir));
 
 // Also serve files from /api/storage for backward compatibility
 app.use('/api/storage', express.static(uploadsDir));
+
+// Add a direct route handler for /api/storage/:filename to ensure it works
+app.get('/api/storage/:filename', (req: Request, res: Response) => {
+  const filename = req.params.filename;
+  const filePath = path.join(uploadsDir, filename);
+  
+  console.log(`Accessing image at: ${filePath}`);
+  
+  if (fs.existsSync(filePath)) {
+    res.sendFile(filePath);
+  } else {
+    console.log(`Image not found: ${filePath}`);
+    res.status(404).json({ error: 'Image not found' });
+  }
+});
 
 // Add a route to check if an image exists
 app.get('/check-image/:filename', (req: Request, res: Response) => {
@@ -328,18 +349,8 @@ app.use('/api/auth', authRoutes);
 app.use('/api/teams', teamRoutes);
 app.use('/api/matches', matchRoutes);
 app.use('/', testRoutes);
-
-// Add a route to handle image paths with the correct URL structure
-app.get('/api/storage/:filename', (req: Request, res: Response) => {
-  const filename = req.params.filename;
-  const filePath = path.join(uploadsDir, filename);
-  
-  if (fs.existsSync(filePath)) {
-    res.sendFile(filePath);
-  } else {
-    res.status(404).json({ error: 'Image not found' });
-  }
-});
+app.use('/', imageRoutes);
+app.use('/', directFixRoutes);
 
 // Redirect old image paths to the new format
 app.get('/uploads/:filename', (req: Request, res: Response) => {

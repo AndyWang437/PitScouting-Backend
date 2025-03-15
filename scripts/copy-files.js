@@ -115,4 +115,9 @@ if (fs.existsSync('FIXES-SUMMARY.md')) {
   copyFile('FIXES-SUMMARY.md', 'dist/FIXES-SUMMARY.md');
 }
 
+// Copy FRONTEND-ISSUES-FIX.md file
+if (fs.existsSync('FRONTEND-ISSUES-FIX.md')) {
+  copyFile('FRONTEND-ISSUES-FIX.md', 'dist/FRONTEND-ISSUES-FIX.md');
+}
+
 console.log('All files copied successfully!'); 
