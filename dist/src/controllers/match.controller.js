@@ -3,16 +3,73 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.getAllMatches = exports.getMatch = exports.createMatch = void 0;
 const models_1 = require("../models");
 const init_1 = require("../db/init");
-// Helper function to check if matches table exists
+// Add this function at the top of the file, after imports
 const checkMatchesTable = async () => {
     try {
-        const [tables] = await init_1.sequelize.query(init_1.sequelize.getDialect() === 'sqlite'
+        const dialect = init_1.sequelize.getDialect();
+        const [tables] = await init_1.sequelize.query(dialect === 'sqlite'
             ? "SELECT name FROM sqlite_master WHERE type='table' AND name='matches'"
             : "SELECT table_name FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'matches'");
-        return tables.length > 0;
+        const tableExists = tables.length > 0;
+        console.log('Matches table exists:', tableExists);
+        if (!tableExists) {
+            // If table doesn't exist, try to create it
+            console.log('Matches table does not exist, attempting to create it...');
+            try {
+                if (dialect === 'postgres') {
+                    await init_1.sequelize.query(`
+            CREATE TABLE IF NOT EXISTS matches (
+              id SERIAL PRIMARY KEY,
+              "matchNumber" INTEGER NOT NULL,
+              "teamNumber" INTEGER NOT NULL,
+              "autoScoreCoral" BOOLEAN DEFAULT false,
+              "autoScoreAlgae" BOOLEAN DEFAULT false,
+              "autoStartingPosition" TEXT,
+              "teleopDealgifying" BOOLEAN DEFAULT false,
+              "teleopPreference" TEXT,
+              "scoringPreference" TEXT,
+              "coralLevels" TEXT DEFAULT '[]',
+              "endgameType" TEXT DEFAULT 'none',
+              "notes" TEXT DEFAULT '',
+              "createdAt" TIMESTAMP DEFAULT NOW(),
+              "updatedAt" TIMESTAMP DEFAULT NOW(),
+              UNIQUE("matchNumber", "teamNumber")
+            )
+          `);
+                }
+                else {
+                    await init_1.sequelize.query(`
+            CREATE TABLE IF NOT EXISTS matches (
+              id INTEGER PRIMARY KEY AUTOINCREMENT,
+              "matchNumber" INTEGER NOT NULL,
+              "teamNumber" INTEGER NOT NULL,
+              "autoScoreCoral" BOOLEAN DEFAULT 0,
+              "autoScoreAlgae" BOOLEAN DEFAULT 0,
+              "autoStartingPosition" TEXT,
+              "teleopDealgifying" BOOLEAN DEFAULT 0,
+              "teleopPreference" TEXT,
+              "scoringPreference" TEXT,
+              "coralLevels" TEXT DEFAULT '[]',
+              "endgameType" TEXT DEFAULT 'none',
+              "notes" TEXT DEFAULT '',
+              "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+              "updatedAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+              UNIQUE("matchNumber", "teamNumber")
+            )
+          `);
+                }
+                console.log('Matches table created successfully');
+                return true;
+            }
+            catch (createError) {
+                console.error('Error creating matches table:', createError);
+                return false;
+            }
+        }
+        return tableExists;
     }
     catch (error) {
-        console.error('Error checking matches table:', error);
+        console.error('Error checking if matches table exists:', error);
         return false;
     }
 };
@@ -127,7 +184,7 @@ const createMatch = async (req, res) => {
             // Try direct SQL approach
             const isSqlite = init_1.sequelize.getDialect() === 'sqlite';
             const [existingMatches] = await init_1.sequelize.query(`SELECT * FROM matches WHERE "matchNumber" = ${matchNumber} AND "teamNumber" = ${teamNumber}`);
-            if (existingMatches.length > 0) {
+            if (existingMatches && existingMatches.length > 0) {
                 const existingMatch = existingMatches[0];
                 console.log('Match exists (SQL), updating:', existingMatch.id);
                 // Build update query
@@ -141,6 +198,9 @@ const createMatch = async (req, res) => {
                             return `"${key}" = '${JSON.stringify(value)}'`;
                         }
                         else {
+                            if (value.length === 0) {
+                                return `"${key}" = '{}'::text[]`;
+                            }
                             return `"${key}" = ARRAY[${value.map(v => `'${v}'`).join(',')}]::text[]`;
                         }
                     }
@@ -169,8 +229,18 @@ const createMatch = async (req, res) => {
             RETURNING *
           `;
                 const [updatedMatches] = await init_1.sequelize.query(updateQuery);
-                console.log('Match updated successfully (SQL):', updatedMatches[0]);
-                res.status(200).json(updatedMatches[0]);
+                if (updatedMatches && updatedMatches.length > 0) {
+                    console.log('Match updated successfully (SQL):', updatedMatches[0]);
+                    res.status(200).json(updatedMatches[0]);
+                }
+                else {
+                    console.error('Match update failed, no data returned');
+                    res.status(500).json({
+                        error: 'Error updating match',
+                        message: 'Match update failed',
+                        details: 'Database operation succeeded but returned no data'
+                    });
+                }
             }
             else {
                 console.log('Match does not exist, creating new match');
@@ -185,6 +255,9 @@ const createMatch = async (req, res) => {
                             return `'${JSON.stringify(value)}'`;
                         }
                         else {
+                            if (value.length === 0) {
+                                return `'{}'::text[]`;
+                            }
                             return `ARRAY[${value.map(v => `'${v}'`).join(',')}]::text[]`;
                         }
                     }
@@ -209,9 +282,73 @@ const createMatch = async (req, res) => {
             VALUES (${values}, NOW(), NOW()) 
             RETURNING *
           `;
-                const [newMatches] = await init_1.sequelize.query(insertQuery);
-                console.log('Match created successfully (SQL):', newMatches[0]);
-                res.status(201).json(newMatches[0]);
+                console.log('Insert query:', insertQuery);
+                try {
+                    const [newMatches] = await init_1.sequelize.query(insertQuery);
+                    // Check if newMatches is defined and has elements
+                    if (newMatches && Array.isArray(newMatches) && newMatches.length > 0) {
+                        console.log('Match created successfully (SQL):', newMatches[0]);
+                        res.status(201).json(newMatches[0]);
+                    }
+                    else {
+                        console.log('Match created but no data returned from SQL query');
+                        // Try to create the match using Sequelize ORM
+                        try {
+                            console.log('Trying to create match using Sequelize ORM');
+                            const newMatch = await models_1.Match.create({
+                                ...processedData,
+                                coralLevels: JSON.stringify(coralLevels)
+                            });
+                            console.log('Match created successfully with Sequelize:', newMatch.toJSON());
+                            res.status(201).json(newMatch);
+                            return;
+                        }
+                        catch (ormError) {
+                            console.error('Error creating match with Sequelize:', ormError);
+                            // Fetch the match we just created
+                            try {
+                                const [createdMatches] = await init_1.sequelize.query(`SELECT * FROM matches WHERE "matchNumber" = ${matchNumber} AND "teamNumber" = ${teamNumber}`);
+                                if (createdMatches && Array.isArray(createdMatches) && createdMatches.length > 0) {
+                                    console.log('Retrieved created match:', createdMatches[0]);
+                                    res.status(201).json(createdMatches[0]);
+                                }
+                                else {
+                                    console.error('Failed to retrieve created match');
+                                    res.status(500).json({
+                                        error: 'Error creating match',
+                                        message: 'Match was created but could not be retrieved',
+                                        details: 'Database operation succeeded but returned no data'
+                                    });
+                                }
+                            }
+                            catch (fetchError) {
+                                console.error('Error fetching created match:', fetchError);
+                                res.status(500).json({
+                                    error: 'Error creating match',
+                                    message: 'Match may have been created but could not be retrieved',
+                                    details: fetchError.message
+                                });
+                            }
+                        }
+                    }
+                }
+                catch (insertError) {
+                    console.error('Error executing insert query:', insertError);
+                    // Try to create the match using Sequelize ORM as a fallback
+                    try {
+                        console.log('Trying to create match using Sequelize ORM after SQL error');
+                        const newMatch = await models_1.Match.create({
+                            ...processedData,
+                            coralLevels: JSON.stringify(coralLevels)
+                        });
+                        console.log('Match created successfully with Sequelize after SQL error:', newMatch.toJSON());
+                        res.status(201).json(newMatch);
+                    }
+                    catch (ormError) {
+                        console.error('Error creating match with Sequelize after SQL error:', ormError);
+                        throw insertError; // Re-throw the original error
+                    }
+                }
             }
         }
         catch (sqlError) {
@@ -221,7 +358,7 @@ const createMatch = async (req, res) => {
     }
     catch (error) {
         console.error('Error creating match:', error);
-        console.error('Error details:', error.original || error);
+        console.error('Error details:', error.original || error.message);
         console.error('Error stack:', error.stack);
         res.status(400).json({
             error: 'Error creating match',
@@ -240,52 +377,79 @@ const getMatch = async (req, res) => {
             res.status(400).json({ error: 'Invalid match or team number' });
             return;
         }
+        // Check if matches table exists
+        const tableExists = await checkMatchesTable();
+        if (!tableExists) {
+            console.error('Matches table does not exist');
+            res.status(500).json({
+                error: 'Database error',
+                message: 'Matches table does not exist',
+                details: 'Please contact the administrator to set up the database'
+            });
+            return;
+        }
         // Try direct SQL approach
         try {
             const isSqlite = init_1.sequelize.getDialect() === 'sqlite';
             const [matches] = await init_1.sequelize.query(`SELECT * FROM matches WHERE "matchNumber" = ${matchNumber} AND "teamNumber" = ${teamNumber}`);
-            if (matches.length === 0) {
+            if (!matches || matches.length === 0) {
                 res.status(404).json({ error: 'Match not found' });
                 return;
             }
             const match = matches[0];
-            // Parse coralLevels if it's a string (SQLite)
-            if (isSqlite && typeof match.coralLevels === 'string') {
+            // Parse coralLevels if it's a string (SQLite or PostgreSQL TEXT)
+            if (typeof match.coralLevels === 'string') {
                 try {
                     match.coralLevels = JSON.parse(match.coralLevels);
-                    console.log('Parsed coralLevels from SQLite:', match.coralLevels);
+                    console.log('Parsed coralLevels from database:', match.coralLevels);
                 }
                 catch (parseError) {
-                    console.error('Error parsing coralLevels from SQLite:', parseError);
+                    console.error('Error parsing coralLevels from database:', parseError);
                     match.coralLevels = [];
                 }
+            }
+            else if (!match.coralLevels) {
+                // Ensure coralLevels is always an array
+                match.coralLevels = [];
             }
             res.json(match);
         }
         catch (sqlError) {
             console.error('SQL error fetching match:', sqlError);
             // Fall back to Sequelize
-            const match = await models_1.Match.findOne({
-                where: {
-                    matchNumber,
-                    teamNumber
-                },
-            });
-            if (!match) {
-                res.status(404).json({ error: 'Match not found' });
-                return;
+            try {
+                const match = await models_1.Match.findOne({
+                    where: {
+                        matchNumber,
+                        teamNumber
+                    },
+                });
+                if (!match) {
+                    res.status(404).json({ error: 'Match not found' });
+                    return;
+                }
+                // Get coralLevels as array using the helper method
+                const matchJSON = match.toJSON();
+                matchJSON.coralLevels = match.getCoralLevelsArray();
+                res.json(matchJSON);
             }
-            res.json(match);
+            catch (ormError) {
+                console.error('Error fetching match with Sequelize:', ormError);
+                throw sqlError; // Re-throw the original error
+            }
         }
     }
     catch (error) {
         console.error('Error fetching match:', error);
-        res.status(500).json({ error: 'Error fetching match', details: error.message });
+        res.status(500).json({
+            error: 'Error fetching match',
+            details: error.message || 'Unknown error',
+            stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
+        });
     }
 };
 exports.getMatch = getMatch;
 const getAllMatches = async (req, res) => {
-    var _a, _b;
     try {
         console.log('Fetching all matches with query params:', req.query);
         // Check if matches table exists
@@ -301,66 +465,54 @@ const getAllMatches = async (req, res) => {
         }
         // Try direct SQL approach
         try {
-            let query = 'SELECT * FROM matches';
-            const whereConditions = [];
-            // Handle search filters
-            if (req.query.search) {
-                whereConditions.push(`("teamNumber"::text LIKE '%${req.query.search}%' OR "matchNumber"::text LIKE '%${req.query.search}%')`);
-            }
-            if (req.query.teamNumber) {
-                whereConditions.push(`"teamNumber" = ${req.query.teamNumber}`);
-            }
-            if (req.query.matchNumber) {
-                whereConditions.push(`"matchNumber" = ${req.query.matchNumber}`);
-            }
-            if (req.query.endgameType) {
-                whereConditions.push(`"endgameType" = '${req.query.endgameType}'`);
-            }
-            if (req.query.autoPosition) {
-                whereConditions.push(`"autoStartingPosition" = '${req.query.autoPosition}'`);
-            }
-            if (req.query.teleopPreference) {
-                whereConditions.push(`"teleopPreference" = '${req.query.teleopPreference}'`);
-            }
-            if (whereConditions.length > 0) {
-                query += ' WHERE ' + whereConditions.join(' AND ');
-            }
-            // Add order by
-            query += ' ORDER BY "matchNumber" ASC, "teamNumber" ASC';
-            console.log('SQL Query:', query);
-            const [matches] = await init_1.sequelize.query(query);
+            console.log('SQL Query: SELECT * FROM matches');
+            const [matches] = await init_1.sequelize.query('SELECT * FROM matches');
             console.log(`Found ${matches.length} matches`);
-            // Process each match for SQLite array handling
-            const isSqlite = init_1.sequelize.getDialect() === 'sqlite';
-            for (const match of matches) {
-                const matchRecord = match;
-                // Parse coralLevels if it's a string (SQLite)
-                if (isSqlite && typeof matchRecord.coralLevels === 'string') {
+            // Process each match to handle coralLevels
+            const processedMatches = matches.map((match) => {
+                // Parse coralLevels if it's a string
+                if (typeof match.coralLevels === 'string') {
                     try {
-                        matchRecord.coralLevels = JSON.parse(matchRecord.coralLevels);
-                        console.log(`Parsed coralLevels for match ${matchRecord.matchNumber}, team ${matchRecord.teamNumber}:`, matchRecord.coralLevels);
+                        match.coralLevels = JSON.parse(match.coralLevels);
                     }
                     catch (parseError) {
-                        console.error(`Error parsing coralLevels for match ${matchRecord.matchNumber}, team ${matchRecord.teamNumber}:`, parseError);
-                        matchRecord.coralLevels = [];
+                        console.error(`Error parsing coralLevels for match ${match.matchNumber}/${match.teamNumber}:`, parseError);
+                        match.coralLevels = [];
                     }
                 }
-            }
-            res.json(matches);
+                else if (!match.coralLevels) {
+                    match.coralLevels = [];
+                }
+                return match;
+            });
+            res.status(200).json(processedMatches);
         }
         catch (sqlError) {
             console.error('SQL error fetching matches:', sqlError);
-            throw sqlError;
+            // Try with Sequelize ORM as fallback
+            try {
+                console.log('Trying to fetch matches with Sequelize ORM');
+                const matches = await models_1.Match.findAll();
+                console.log(`Found ${matches.length} matches with Sequelize`);
+                // Process each match to handle coralLevels
+                const processedMatches = matches.map(match => {
+                    const matchJSON = match.toJSON();
+                    matchJSON.coralLevels = match.getCoralLevelsArray();
+                    return matchJSON;
+                });
+                res.status(200).json(processedMatches);
+            }
+            catch (ormError) {
+                console.error('Error fetching matches with Sequelize:', ormError);
+                throw sqlError; // Re-throw the original error
+            }
         }
     }
     catch (error) {
         console.error('Error fetching matches:', error);
-        console.error('Error details:', error.original || error);
-        console.error('Error stack:', error.stack);
-        res.status(400).json({
+        res.status(500).json({
             error: 'Error fetching matches',
-            message: error.message,
-            details: ((_a = error.original) === null || _a === void 0 ? void 0 : _a.detail) || ((_b = error.original) === null || _b === void 0 ? void 0 : _b.message) || error.message,
+            details: error.message || 'Unknown error',
             stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
         });
     }

@@ -1,87 +1,150 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
+exports.initTeamModel = void 0;
 const sequelize_1 = require("sequelize");
-const init_1 = require("../db/init");
-class Team extends sequelize_1.Model {
-}
-Team.init({
-    id: {
-        type: sequelize_1.DataTypes.INTEGER,
-        autoIncrement: true,
-        primaryKey: true,
-    },
-    teamNumber: {
-        type: sequelize_1.DataTypes.INTEGER,
-        allowNull: false,
-        unique: true,
-    },
-    autoScoreCoral: {
-        type: sequelize_1.DataTypes.BOOLEAN,
-        defaultValue: false,
-    },
-    autoScoreAlgae: {
-        type: sequelize_1.DataTypes.BOOLEAN,
-        defaultValue: false,
-    },
-    mustStartSpecificPosition: {
-        type: sequelize_1.DataTypes.BOOLEAN,
-        defaultValue: false,
-    },
-    autoStartingPosition: {
-        type: sequelize_1.DataTypes.STRING,
-        allowNull: true,
-    },
-    teleopDealgifying: {
-        type: sequelize_1.DataTypes.BOOLEAN,
-        defaultValue: false,
-    },
-    teleopPreference: {
-        type: sequelize_1.DataTypes.STRING,
-        allowNull: true,
-    },
-    scoringPreference: {
-        type: sequelize_1.DataTypes.STRING,
-        allowNull: true,
-    },
-    coralLevels: {
-        type: sequelize_1.DataTypes.ARRAY(sequelize_1.DataTypes.STRING),
-        defaultValue: [],
-    },
-    endgameType: {
-        type: sequelize_1.DataTypes.STRING,
-        defaultValue: 'none',
-    },
-    robotWidth: {
-        type: sequelize_1.DataTypes.FLOAT,
-        allowNull: true,
-    },
-    robotLength: {
-        type: sequelize_1.DataTypes.FLOAT,
-        allowNull: true,
-    },
-    robotHeight: {
-        type: sequelize_1.DataTypes.FLOAT,
-        allowNull: true,
-    },
-    robotWeight: {
-        type: sequelize_1.DataTypes.FLOAT,
-        allowNull: true,
-    },
-    drivetrainType: {
-        type: sequelize_1.DataTypes.STRING,
-        allowNull: true,
-    },
-    notes: {
-        type: sequelize_1.DataTypes.TEXT,
-        defaultValue: '',
-    },
-    imageUrl: {
-        type: sequelize_1.DataTypes.STRING,
-        allowNull: true,
-    },
-}, {
-    sequelize: init_1.sequelize,
-    modelName: 'Team',
-    tableName: 'teams',
-});
-exports.default = Team;
+const initTeamModel = (sequelize) => {
+    console.log('Initializing Team model with sequelize instance');
+    const Team = sequelize.define('Team', {
+        id: {
+            type: sequelize_1.DataTypes.INTEGER,
+            autoIncrement: true,
+            primaryKey: true,
+        },
+        teamNumber: {
+            type: sequelize_1.DataTypes.INTEGER,
+            allowNull: false,
+            unique: true,
+        },
+        autoScoreCoral: {
+            type: sequelize_1.DataTypes.BOOLEAN,
+            allowNull: true,
+        },
+        autoScoreAlgae: {
+            type: sequelize_1.DataTypes.BOOLEAN,
+            allowNull: true,
+        },
+        mustStartSpecificPosition: {
+            type: sequelize_1.DataTypes.BOOLEAN,
+            allowNull: true,
+        },
+        autoStartingPosition: {
+            type: sequelize_1.DataTypes.STRING,
+            allowNull: true,
+        },
+        teleopDealgifying: {
+            type: sequelize_1.DataTypes.BOOLEAN,
+            allowNull: true,
+        },
+        teleopPreference: {
+            type: sequelize_1.DataTypes.STRING,
+            allowNull: true,
+        },
+        scoringPreference: {
+            type: sequelize_1.DataTypes.STRING,
+            allowNull: true,
+        },
+        coralLevels: {
+            type: sequelize_1.DataTypes.STRING,
+            allowNull: true,
+            get() {
+                const value = this.getDataValue('coralLevels');
+                if (!value)
+                    return [];
+                try {
+                    if (typeof value === 'string') {
+                        // Handle PostgreSQL array format
+                        if (value.startsWith('{') && value.endsWith('}')) {
+                            return value
+                                .replace(/^\{|\}$/g, '') // Remove { and }
+                                .split(',')
+                                .map(item => item.trim().replace(/^"|"$/g, '')); // Remove quotes
+                        }
+                        // Try standard JSON parse
+                        return JSON.parse(value);
+                    }
+                    return value;
+                }
+                catch (e) {
+                    console.error('Error parsing coralLevels:', e);
+                    return [];
+                }
+            },
+            set(value) {
+                if (Array.isArray(value)) {
+                    this.setDataValue('coralLevels', JSON.stringify(value));
+                }
+                else {
+                    this.setDataValue('coralLevels', value);
+                }
+            }
+        },
+        endgameType: {
+            type: sequelize_1.DataTypes.STRING,
+            allowNull: true,
+        },
+        robotWidth: {
+            type: sequelize_1.DataTypes.FLOAT,
+            allowNull: true,
+        },
+        robotLength: {
+            type: sequelize_1.DataTypes.FLOAT,
+            allowNull: true,
+        },
+        robotHeight: {
+            type: sequelize_1.DataTypes.FLOAT,
+            allowNull: true,
+        },
+        robotWeight: {
+            type: sequelize_1.DataTypes.FLOAT,
+            allowNull: true,
+        },
+        drivetrainType: {
+            type: sequelize_1.DataTypes.STRING,
+            allowNull: true,
+        },
+        imageUrl: {
+            type: sequelize_1.DataTypes.STRING,
+            allowNull: true,
+        },
+        notes: {
+            type: sequelize_1.DataTypes.TEXT,
+            allowNull: true,
+        },
+    }, {
+        tableName: 'teams',
+        timestamps: true,
+    });
+    // Add method to get coralLevels as array
+    Team.prototype.getCoralLevelsArray = function () {
+        const coralLevels = this.getDataValue('coralLevels');
+        if (!coralLevels)
+            return [];
+        if (typeof coralLevels === 'string') {
+            try {
+                // Handle PostgreSQL array format like "{\"level1\",\"level2\"}"
+                if (coralLevels.startsWith('{') && coralLevels.endsWith('}')) {
+                    const cleanedString = coralLevels
+                        .replace(/^\{|\}$/g, '') // Remove { and }
+                        .split(',')
+                        .map(item => item.trim().replace(/^"|"$/g, '')); // Remove quotes
+                    return cleanedString;
+                }
+                // Try standard JSON parse
+                return JSON.parse(coralLevels);
+            }
+            catch (error) {
+                console.error('Error parsing coralLevels:', error);
+                return [];
+            }
+        }
+        // If it's already an array, return it
+        if (Array.isArray(coralLevels)) {
+            return coralLevels;
+        }
+        // If it's something else, wrap it in an array
+        return [coralLevels];
+    };
+    console.log('Team model initialized successfully');
+    return Team;
+};
+exports.initTeamModel = initTeamModel;

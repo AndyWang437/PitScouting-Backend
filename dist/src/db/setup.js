@@ -9,13 +9,13 @@ const bcryptjs_1 = __importDefault(require("bcryptjs"));
 const config_js_1 = __importDefault(require("../../config/config.js"));
 const env = process.env.NODE_ENV || 'development';
 const dbConfig = config_js_1.default[env];
-const isSqlite = dbConfig.dialect === 'sqlite';
+const isSqlite = init_1.sequelize.getDialect() === 'sqlite';
 const setupDatabase = async () => {
     try {
         console.log('Starting database setup...');
         console.log('Database URL:', process.env.DATABASE_URL ? `${process.env.DATABASE_URL.substring(0, 25)}...` : 'Not set');
         console.log('Node environment:', process.env.NODE_ENV);
-        console.log('Database dialect:', dbConfig.dialect);
+        console.log('Database dialect:', init_1.sequelize.getDialect());
         // First, try to authenticate to make sure we can connect to the database
         try {
             await init_1.sequelize.authenticate();
@@ -25,8 +25,54 @@ const setupDatabase = async () => {
             console.error('Failed to authenticate database connection:', authError);
             throw authError;
         }
-        // Drop and recreate tables
-        console.log('Dropping and recreating tables...');
+        // Check if tables already exist
+        try {
+            const [existingTables] = await init_1.sequelize.query(isSqlite
+                ? "SELECT name FROM sqlite_master WHERE type='table'"
+                : "SELECT table_name FROM information_schema.tables WHERE table_schema = 'public'");
+            console.log('Existing tables before setup:', existingTables);
+            // If tables already exist, skip recreation regardless of environment
+            if (existingTables.length > 3) { // More than system tables
+                console.log('Tables already exist, skipping table creation');
+                // Still try to ensure admin user exists
+                try {
+                    await ensureAdminUser();
+                    console.log('Admin user check completed successfully');
+                }
+                catch (adminError) {
+                    console.error('Error ensuring admin user exists, but continuing:', adminError);
+                    // Don't throw here, we want to continue even if admin user creation fails
+                }
+                console.log('Database setup completed (tables already existed)');
+                return;
+            }
+        }
+        catch (checkError) {
+            console.error('Error checking existing tables:', checkError);
+            // Try a simpler check for tables
+            try {
+                const [teams] = await init_1.sequelize.query("SELECT * FROM teams LIMIT 1");
+                if (teams && teams.length > 0) {
+                    console.log('Teams table exists and has data, skipping table creation');
+                    // Still try to ensure admin user exists
+                    try {
+                        await ensureAdminUser();
+                        console.log('Admin user check completed successfully');
+                    }
+                    catch (adminError) {
+                        console.error('Error ensuring admin user exists, but continuing:', adminError);
+                    }
+                    console.log('Database setup completed (tables already existed)');
+                    return;
+                }
+            }
+            catch (simpleCheckError) {
+                console.log('Simple table check also failed, will attempt to create tables:', simpleCheckError);
+                // Continue with setup
+            }
+        }
+        // Only drop and recreate tables if they don't exist
+        console.log('Tables do not exist, creating them...');
         try {
             // Drop tables if they exist
             if (isSqlite) {
@@ -34,12 +80,18 @@ const setupDatabase = async () => {
                 console.log('Using SQLite, tables will be dropped during sync');
             }
             else {
-                await init_1.sequelize.query(`
-          DROP TABLE IF EXISTS matches CASCADE;
-          DROP TABLE IF EXISTS teams CASCADE;
-          DROP TABLE IF EXISTS users CASCADE;
-        `);
-                console.log('Existing tables dropped');
+                try {
+                    await init_1.sequelize.query(`
+            DROP TABLE IF EXISTS matches CASCADE;
+            DROP TABLE IF EXISTS teams CASCADE;
+            DROP TABLE IF EXISTS users CASCADE;
+          `);
+                    console.log('Existing tables dropped');
+                }
+                catch (dropError) {
+                    console.error('Error dropping tables:', dropError);
+                    // Continue anyway, as tables might not exist yet
+                }
             }
             // Create teams table
             console.log('Creating teams table...');
@@ -72,7 +124,7 @@ const setupDatabase = async () => {
             }
             else {
                 await init_1.sequelize.query(`
-          CREATE TABLE teams (
+          CREATE TABLE IF NOT EXISTS teams (
             id SERIAL PRIMARY KEY,
             "teamNumber" INTEGER NOT NULL UNIQUE,
             "autoScoreCoral" BOOLEAN DEFAULT false,
@@ -122,7 +174,7 @@ const setupDatabase = async () => {
             }
             else {
                 await init_1.sequelize.query(`
-          CREATE TABLE matches (
+          CREATE TABLE IF NOT EXISTS matches (
             id SERIAL PRIMARY KEY,
             "matchNumber" INTEGER NOT NULL,
             "teamNumber" INTEGER NOT NULL,
@@ -159,7 +211,7 @@ const setupDatabase = async () => {
             }
             else {
                 await init_1.sequelize.query(`
-          CREATE TABLE users (
+          CREATE TABLE IF NOT EXISTS users (
             id SERIAL PRIMARY KEY,
             name VARCHAR(255) NOT NULL,
             email VARCHAR(255) NOT NULL UNIQUE,
@@ -186,38 +238,7 @@ const setupDatabase = async () => {
             throw error;
         }
         // Create admin user
-        console.log('Creating admin user...');
-        try {
-            const hashedPassword = await bcryptjs_1.default.hash('otisit!!!', 10);
-            if (isSqlite) {
-                await init_1.sequelize.query(`
-          INSERT OR REPLACE INTO users (name, email, password, "teamNumber")
-          VALUES ('Admin', '1334admin@gmail.com', '${hashedPassword}', 1334)
-        `);
-            }
-            else {
-                await init_1.sequelize.query(`
-          INSERT INTO users (name, email, password, "teamNumber", "createdAt", "updatedAt")
-          VALUES ('Admin', '1334admin@gmail.com', '${hashedPassword}', 1334, NOW(), NOW())
-          ON CONFLICT (email) 
-          DO UPDATE SET 
-            password = '${hashedPassword}',
-            "updatedAt" = NOW()
-        `);
-            }
-            console.log('Admin user created/updated successfully');
-            // Verify user was created
-            const [users] = await init_1.sequelize.query("SELECT * FROM users WHERE email = '1334admin@gmail.com'");
-            console.log(`Found ${users.length} admin users`);
-        }
-        catch (error) {
-            console.error('Error creating admin user:', error);
-            if (error instanceof Error) {
-                console.error('Error message:', error.message);
-                console.error('Error stack:', error.stack);
-            }
-            // Don't throw here, as we want the app to start even if user creation fails
-        }
+        await ensureAdminUser();
         console.log('Database setup completed successfully');
     }
     catch (error) {
@@ -230,3 +251,69 @@ const setupDatabase = async () => {
     }
 };
 exports.setupDatabase = setupDatabase;
+// Helper function to ensure admin user exists
+async function ensureAdminUser() {
+    console.log('Creating admin user...');
+    try {
+        const hashedPassword = await bcryptjs_1.default.hash('otisit!!!', 10);
+        if (isSqlite) {
+            await init_1.sequelize.query(`
+        INSERT OR REPLACE INTO users (name, email, password, "teamNumber", "createdAt", "updatedAt")
+        VALUES ('Admin', '1334admin@gmail.com', '${hashedPassword}', 1334, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+      `);
+        }
+        else {
+            try {
+                // First check if the user already exists
+                const [existingUsers] = await init_1.sequelize.query(`
+          SELECT * FROM users WHERE email = '1334admin@gmail.com'
+        `);
+                if (existingUsers.length > 0) {
+                    console.log('Admin user already exists, updating password');
+                    await init_1.sequelize.query(`
+            UPDATE users 
+            SET password = '${hashedPassword}', "updatedAt" = NOW() 
+            WHERE email = '1334admin@gmail.com'
+          `);
+                }
+                else {
+                    console.log('Admin user does not exist, creating new user');
+                    await init_1.sequelize.query(`
+            INSERT INTO users (name, email, password, "teamNumber", "createdAt", "updatedAt")
+            VALUES ('Admin', '1334admin@gmail.com', '${hashedPassword}', 1334, NOW(), NOW())
+          `);
+                }
+            }
+            catch (pgError) {
+                console.error('Error with PostgreSQL admin user operation:', pgError);
+                // Try a more basic approach
+                try {
+                    await init_1.sequelize.query(`
+            INSERT INTO users (name, email, password, "teamNumber", "createdAt", "updatedAt")
+            VALUES ('Admin', '1334admin@gmail.com', '${hashedPassword}', 1334, NOW(), NOW())
+            ON CONFLICT (email) 
+            DO UPDATE SET 
+              password = '${hashedPassword}',
+              "updatedAt" = NOW()
+          `);
+                }
+                catch (fallbackError) {
+                    console.error('Fallback admin user creation also failed:', fallbackError);
+                    // Don't throw, we'll continue anyway
+                }
+            }
+        }
+        console.log('Admin user created/updated successfully');
+        // Verify user was created
+        const [users] = await init_1.sequelize.query("SELECT * FROM users WHERE email = '1334admin@gmail.com'");
+        console.log(`Found ${users.length} admin users`);
+    }
+    catch (error) {
+        console.error('Error creating admin user:', error);
+        if (error instanceof Error) {
+            console.error('Error message:', error.message);
+            console.error('Error stack:', error.stack);
+        }
+        // Don't throw here, as we want the app to start even if user creation fails
+    }
+}

@@ -1,0 +1,18 @@
+{
+  "compilerOptions": {
+    "target": "es2018", // Good choice for modern JavaScript features
+    "module": "commonjs", // CommonJS is appropriate for Node.js
+    "outDir": "./dist", // Output directory for compiled files
+    "rootDir": ".", // Root directory for input files
+    "strict": false, // Consider enabling strict mode for better type safety
+    "esModuleInterop": true, // Allows default imports from modules with no default export
+    "skipLibCheck": true, // Skips type checking of declaration files, which can speed up compilation
+    "forceConsistentCasingInFileNames": true, // Ensures consistent casing in file names
+    "resolveJsonModule": true, // Allows importing JSON files
+    "noImplicitAny": false, // Consider enabling this for stricter type checking
+    "allowJs": true, // Allows JavaScript files to be compiled
+    "typeRoots": ["./node_modules/@types", "./config"] // Custom type roots
+  },
+  "include": ["src/**/*", "config/**/*"], // Includes all TypeScript files in src and config
+  "exclude": ["node_modules", "src/tests/**/*"]
+}
