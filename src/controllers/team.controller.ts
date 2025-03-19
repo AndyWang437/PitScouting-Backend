@@ -167,7 +167,7 @@ export const createTeam = async (req: Request, res: Response): Promise<void> => 
           console.log('Empty coralLevels string, using empty array');
         } else {
           try {
-            coralLevels = JSON.parse(req.body.coralLevels);
+        coralLevels = JSON.parse(req.body.coralLevels);
             console.log('Parsed coralLevels from string:', coralLevels);
           } catch (parseError) {
             console.error('Error parsing coralLevels JSON:', parseError);
