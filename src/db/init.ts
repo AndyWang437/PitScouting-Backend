@@ -2,31 +2,25 @@ import { Sequelize } from 'sequelize';
 import fs from 'fs';
 import path from 'path';
 
-// Get environment variables
 const env = process.env.NODE_ENV || 'development';
 console.log('Environment:', env);
 
-// Create a Sequelize instance
 let sequelize: Sequelize;
 
-// Log database configuration
 console.log('Database config:', {
   dialect: env === 'production' ? 'postgres' : 'sqlite',
   storage: env === 'production' ? undefined : './database.sqlite',
   password: process.env.DATABASE_URL ? '********' : undefined
 });
 
-// Initialize database connection
 const initDb = async (): Promise<Sequelize> => {
   try {
     console.log('Initializing database...');
     
     if (env === 'production') {
-      // Production environment (PostgreSQL)
       console.log('Using PostgreSQL for production');
       
       try {
-        // Try with SSL first
         sequelize = new Sequelize(process.env.DATABASE_URL!, {
           dialect: 'postgres',
           dialectOptions: {
@@ -43,7 +37,6 @@ const initDb = async (): Promise<Sequelize> => {
       } catch (sslError) {
         console.error('Error connecting with SSL:', sslError);
         
-        // Try without SSL
         try {
           console.log('Trying to connect without SSL...');
           sequelize = new Sequelize(process.env.DATABASE_URL!, {
@@ -59,10 +52,8 @@ const initDb = async (): Promise<Sequelize> => {
         }
       }
     } else {
-      // Development environment (SQLite)
       console.log('Using SQLite for development');
       
-      // Ensure the database directory exists
       const dbDir = path.dirname('./database.sqlite');
       if (!fs.existsSync(dbDir)) {
         fs.mkdirSync(dbDir, { recursive: true });
@@ -77,12 +68,10 @@ const initDb = async (): Promise<Sequelize> => {
       await sequelize.authenticate();
       console.log('Database connection established successfully.');
       
-      // Sync database in development mode
       await sequelize.sync();
       console.log('Database synced in development mode');
     }
     
-    // Check for existing tables
     try {
       const [tables] = await sequelize.query(
         sequelize.getDialect() === 'sqlite'
@@ -103,5 +92,4 @@ const initDb = async (): Promise<Sequelize> => {
   }
 };
 
-// Export the Sequelize instance and initialization function
 export { sequelize, initDb }; 

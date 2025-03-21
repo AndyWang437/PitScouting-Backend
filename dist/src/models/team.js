@@ -2,7 +2,6 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 const sequelize_1 = require("sequelize");
 class Team extends sequelize_1.Model {
-    // Helper method to always get coralLevels as an array regardless of storage format
     getCoralLevelsArray() {
         const levels = this.coralLevels;
         if (typeof levels === 'string') {
@@ -82,12 +81,10 @@ class Team extends sequelize_1.Model {
                     }
                     else if (typeof value === 'string') {
                         try {
-                            // Try to parse it as JSON first
                             JSON.parse(value);
                             this.setDataValue('coralLevels', value);
                         }
                         catch (e) {
-                            // If it's not valid JSON, store it as a JSON string
                             this.setDataValue('coralLevels', JSON.stringify([value]));
                         }
                     }

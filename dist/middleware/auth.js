@@ -26,4 +26,3 @@ const auth = async (req, res, next) => {
     }
 };
 exports.auth = auth;
-//# sourceMappingURL=auth.js.map

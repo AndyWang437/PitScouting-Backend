@@ -12,4 +12,3 @@ app.use(express_1.default.json());
 app.use('/uploads', express_1.default.static('uploads'));
 app.use('/api/teams', teams_1.default);
 exports.default = app;
-//# sourceMappingURL=app.js.map

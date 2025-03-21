@@ -5,7 +5,6 @@ type NextFunction = express.NextFunction;
 import { Match } from '../models';
 import { sequelize } from '../db/init';
 
-// Define interfaces for database records
 interface MatchRecord {
   id: number;
   matchNumber: number;
@@ -23,7 +22,6 @@ interface MatchRecord {
   updatedAt: Date;
 }
 
-// Add this function at the top of the file, after imports
 const checkMatchesTable = async (): Promise<boolean> => {
   try {
     const dialect = sequelize.getDialect();
@@ -37,7 +35,6 @@ const checkMatchesTable = async (): Promise<boolean> => {
     console.log('Matches table exists:', tableExists);
     
     if (!tableExists) {
-      // If table doesn't exist, try to create it
       console.log('Matches table does not exist, attempting to create it...');
       try {
         if (dialect === 'postgres') {
@@ -100,7 +97,6 @@ export const createMatch = async (req: Request, res: Response): Promise<void> =>
   try {
     console.log('Received match data:', JSON.stringify(req.body, null, 2));
     
-    // Check if matches table exists
     const tableExists = await checkMatchesTable();
     if (!tableExists) {
       console.error('Matches table does not exist');
@@ -112,13 +108,11 @@ export const createMatch = async (req: Request, res: Response): Promise<void> =>
       return;
     }
     
-    // Validate required fields
     if (!req.body.matchNumber || !req.body.teamNumber) {
       console.error('Match number or team number is missing in request');
       throw new Error('Match number and team number are required');
     }
 
-    // Parse and validate numeric values
     const matchNumber = parseInt(req.body.matchNumber);
     const teamNumber = parseInt(req.body.teamNumber);
 
@@ -127,7 +121,6 @@ export const createMatch = async (req: Request, res: Response): Promise<void> =>
       throw new Error('Invalid match or team number format');
     }
 
-    // Handle coralLevels
     let coralLevels: string[] = [];
     try {
       if (typeof req.body.coralLevels === 'string') {
@@ -140,7 +133,6 @@ export const createMatch = async (req: Request, res: Response): Promise<void> =>
             console.log('Parsed coralLevels from string:', coralLevels);
           } catch (parseError) {
             console.error('Error parsing coralLevels JSON:', parseError);
-            // If it's not valid JSON, treat it as a single item
             coralLevels = [req.body.coralLevels];
             console.log('Using coralLevels as single item:', coralLevels);
           }
@@ -156,7 +148,6 @@ export const createMatch = async (req: Request, res: Response): Promise<void> =>
       coralLevels = [];
     }
     
-    // Handle boolean values properly
     const parseBooleanField = (value: any) => {
       if (typeof value === 'boolean') return value;
       if (typeof value === 'string') {
@@ -181,12 +172,9 @@ export const createMatch = async (req: Request, res: Response): Promise<void> =>
 
     console.log('Processed match data:', JSON.stringify(processedData, null, 2));
 
-    // Try direct SQL approach if Sequelize fails
     try {
-      // Check if match already exists
       console.log('Checking if match already exists with match number and team number:', matchNumber, teamNumber);
       
-      // First try with Sequelize
       try {
         const existingMatch = await Match.findOne({ 
           where: { 
@@ -197,7 +185,6 @@ export const createMatch = async (req: Request, res: Response): Promise<void> =>
         
         if (existingMatch) {
           console.log('Match exists, updating:', existingMatch.id);
-          // Update existing match
           await existingMatch.update(processedData);
           console.log('Match updated successfully:', existingMatch.toJSON());
           res.status(200).json(existingMatch);
@@ -205,10 +192,8 @@ export const createMatch = async (req: Request, res: Response): Promise<void> =>
         }
       } catch (sequelizeError) {
         console.error('Sequelize error finding match:', sequelizeError);
-        // Continue with direct SQL approach
       }
       
-      // Try direct SQL approach
       const isSqlite = sequelize.getDialect() === 'sqlite';
       const [existingMatches] = await sequelize.query(
         `SELECT * FROM matches WHERE "matchNumber" = ${matchNumber} AND "teamNumber" = ${teamNumber}`
@@ -218,7 +203,6 @@ export const createMatch = async (req: Request, res: Response): Promise<void> =>
         const existingMatch = existingMatches[0] as MatchRecord;
         console.log('Match exists (SQL), updating:', existingMatch.id);
         
-        // Build update query
         const updateFields = Object.entries(processedData)
           .map(([key, value]) => {
             if (value === null) {
@@ -271,7 +255,6 @@ export const createMatch = async (req: Request, res: Response): Promise<void> =>
       } else {
         console.log('Match does not exist, creating new match');
         
-        // Build insert query
         const keys = Object.keys(processedData).map(k => `"${k}"`).join(', ');
         const values = Object.entries(processedData).map(([_, value]) => {
           if (value === null) {
@@ -311,14 +294,12 @@ export const createMatch = async (req: Request, res: Response): Promise<void> =>
         try {
           const [newMatches] = await sequelize.query(insertQuery);
           
-          // Check if newMatches is defined and has elements
           if (newMatches && Array.isArray(newMatches) && newMatches.length > 0) {
             console.log('Match created successfully (SQL):', newMatches[0]);
             res.status(201).json(newMatches[0]);
           } else {
             console.log('Match created but no data returned from SQL query');
             
-            // Try to create the match using Sequelize ORM
             try {
               console.log('Trying to create match using Sequelize ORM');
               const newMatch = await Match.create({
@@ -331,7 +312,6 @@ export const createMatch = async (req: Request, res: Response): Promise<void> =>
             } catch (ormError) {
               console.error('Error creating match with Sequelize:', ormError);
               
-              // Fetch the match we just created
               try {
                 const [createdMatches] = await sequelize.query(
                   `SELECT * FROM matches WHERE "matchNumber" = ${matchNumber} AND "teamNumber" = ${teamNumber}`
@@ -361,7 +341,6 @@ export const createMatch = async (req: Request, res: Response): Promise<void> =>
         } catch (insertError) {
           console.error('Error executing insert query:', insertError);
           
-          // Try to create the match using Sequelize ORM as a fallback
           try {
             console.log('Trying to create match using Sequelize ORM after SQL error');
             const newMatch = await Match.create({
@@ -372,7 +351,7 @@ export const createMatch = async (req: Request, res: Response): Promise<void> =>
             res.status(201).json(newMatch);
           } catch (ormError) {
             console.error('Error creating match with Sequelize after SQL error:', ormError);
-            throw insertError; // Re-throw the original error
+            throw insertError; 
           }
         }
       }
@@ -403,7 +382,6 @@ export const getMatch = async (req: Request, res: Response): Promise<void> => {
       return;
     }
 
-    // Check if matches table exists
     const tableExists = await checkMatchesTable();
     if (!tableExists) {
       console.error('Matches table does not exist');
@@ -415,7 +393,6 @@ export const getMatch = async (req: Request, res: Response): Promise<void> => {
       return;
     }
 
-    // Try direct SQL approach
     try {
       const isSqlite = sequelize.getDialect() === 'sqlite';
       const [matches] = await sequelize.query(
@@ -429,7 +406,6 @@ export const getMatch = async (req: Request, res: Response): Promise<void> => {
       
       const match = matches[0] as MatchRecord;
       
-      // Parse coralLevels if it's a string (SQLite or PostgreSQL TEXT)
       if (typeof match.coralLevels === 'string') {
         try {
           match.coralLevels = JSON.parse(match.coralLevels as unknown as string);
@@ -439,7 +415,6 @@ export const getMatch = async (req: Request, res: Response): Promise<void> => {
           match.coralLevels = [];
         }
       } else if (!match.coralLevels) {
-        // Ensure coralLevels is always an array
         match.coralLevels = [];
       }
       
@@ -447,7 +422,6 @@ export const getMatch = async (req: Request, res: Response): Promise<void> => {
     } catch (sqlError) {
       console.error('SQL error fetching match:', sqlError);
       
-      // Fall back to Sequelize
       try {
         const match = await Match.findOne({
           where: { 
@@ -461,14 +435,13 @@ export const getMatch = async (req: Request, res: Response): Promise<void> => {
           return;
         }
 
-        // Get coralLevels as array using the helper method
         const matchJSON = match.toJSON();
         matchJSON.coralLevels = match.getCoralLevelsArray();
 
         res.json(matchJSON);
       } catch (ormError) {
         console.error('Error fetching match with Sequelize:', ormError);
-        throw sqlError; // Re-throw the original error
+        throw sqlError; 
       }
     }
   } catch (error: any) {
@@ -485,7 +458,6 @@ export const getAllMatches = async (req: Request, res: Response): Promise<void> 
   try {
     console.log('Fetching all matches with query params:', req.query);
     
-    // Check if matches table exists
     const tableExists = await checkMatchesTable();
     if (!tableExists) {
       console.error('Matches table does not exist');
@@ -497,15 +469,12 @@ export const getAllMatches = async (req: Request, res: Response): Promise<void> 
       return;
     }
     
-    // Try direct SQL approach
     try {
       console.log('SQL Query: SELECT * FROM matches');
       const [matches] = await sequelize.query('SELECT * FROM matches');
       console.log(`Found ${matches.length} matches`);
       
-      // Process each match to handle coralLevels
       const processedMatches = matches.map((match: any) => {
-        // Parse coralLevels if it's a string
         if (typeof match.coralLevels === 'string') {
           try {
             match.coralLevels = JSON.parse(match.coralLevels);
@@ -523,13 +492,11 @@ export const getAllMatches = async (req: Request, res: Response): Promise<void> 
     } catch (sqlError) {
       console.error('SQL error fetching matches:', sqlError);
       
-      // Try with Sequelize ORM as fallback
       try {
         console.log('Trying to fetch matches with Sequelize ORM');
         const matches = await Match.findAll();
         console.log(`Found ${matches.length} matches with Sequelize`);
         
-        // Process each match to handle coralLevels
         const processedMatches = matches.map(match => {
           const matchJSON = match.toJSON();
           matchJSON.coralLevels = match.getCoralLevelsArray();
@@ -539,7 +506,7 @@ export const getAllMatches = async (req: Request, res: Response): Promise<void> 
         res.status(200).json(processedMatches);
       } catch (ormError) {
         console.error('Error fetching matches with Sequelize:', ormError);
-        throw sqlError; // Re-throw the original error
+        throw sqlError; 
       }
     }
   } catch (error: any) {

@@ -46,4 +46,3 @@ async function down(queryInterface) {
     await queryInterface.bulkDelete('users', {});
     await queryInterface.bulkDelete('teams', {});
 }
-//# sourceMappingURL=20240111000001-demo-data.js.map

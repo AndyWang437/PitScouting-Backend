@@ -7,7 +7,6 @@ const express = require("express");
 const path_1 = __importDefault(require("path"));
 const fs_1 = __importDefault(require("fs"));
 const router = express.Router();
-// Add a route to check if an image exists
 router.get('/check-image/:filename', (req, res) => {
     const uploadsDir = path_1.default.join(__dirname, '../../uploads');
     const filename = req.params.filename;
@@ -28,7 +27,6 @@ router.get('/check-image/:filename', (req, res) => {
         });
     }
 });
-// Add a test HTML page to test image paths
 router.get('/test-image-paths', (req, res) => {
     const html = `
     <!DOCTYPE html>
@@ -108,7 +106,6 @@ router.get('/test-image-paths', (req, res) => {
             return;
           }
           
-          // Check if the image exists
           fetch('/check-image/' + filename)
             .then(response => response.json())
             .then(data => {
@@ -127,7 +124,6 @@ router.get('/test-image-paths', (req, res) => {
               }
               document.getElementById('testResult').innerHTML = html;
               
-              // Also update the format tests
               document.getElementById('format1').innerHTML = '<img src="/uploads/' + filename + '" alt="Test via /uploads/" onerror="this.onerror=null;this.src=\'\';this.alt=\'Image failed to load\';" />';
               document.getElementById('format2').innerHTML = '<img src="/api/storage/' + filename + '" alt="Test via /api/storage/" onerror="this.onerror=null;this.src=\'\';this.alt=\'Image failed to load\';" />';
             })

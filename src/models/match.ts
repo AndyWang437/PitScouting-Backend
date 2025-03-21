@@ -10,7 +10,7 @@ interface MatchAttributes {
   teleopDealgifying: boolean;
   teleopPreference: string | null;
   scoringPreference: string | null;
-  coralLevels: string[] | string; // Allow string for SQLite storage
+  coralLevels: string[] | string; 
   endgameType: string;
   notes: string;
   createdAt: Date;
@@ -29,13 +29,12 @@ class Match extends Model<MatchAttributes, MatchCreationAttributes> implements M
   public teleopDealgifying!: boolean;
   public teleopPreference!: string | null;
   public scoringPreference!: string | null;
-  public coralLevels!: string[] | string; // Allow string for SQLite storage
+  public coralLevels!: string[] | string; 
   public endgameType!: string;
   public notes!: string;
   public readonly createdAt!: Date;
   public readonly updatedAt!: Date;
 
-  // Helper method to always get coralLevels as an array regardless of storage format
   public getCoralLevelsArray(): string[] {
     const levels = this.coralLevels;
     if (typeof levels === 'string') {
@@ -114,11 +113,9 @@ class Match extends Model<MatchAttributes, MatchCreationAttributes> implements M
               this.setDataValue('coralLevels', JSON.stringify(value));
             } else if (typeof value === 'string') {
               try {
-                // Try to parse it as JSON first
                 JSON.parse(value);
                 this.setDataValue('coralLevels', value);
               } catch (e) {
-                // If it's not valid JSON, store it as a JSON string
                 this.setDataValue('coralLevels', JSON.stringify([value]));
               }
             } else {

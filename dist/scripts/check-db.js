@@ -34,7 +34,6 @@ async function checkDatabase() {
     await sequelize.authenticate();
     console.log('Database connection authenticated successfully');
     
-    // Check if tables exist
     const dialect = sequelize.getDialect();
     console.log('Database dialect:', dialect);
     
@@ -46,7 +45,6 @@ async function checkDatabase() {
     
     console.log('Existing tables:', tables);
     
-    // Check table structures
     for (const table of tables) {
       const tableName = dialect === 'sqlite' ? table.name : table.table_name;
       if (tableName && !tableName.startsWith('sqlite_') && tableName !== 'pg_stat_statements') {
@@ -59,7 +57,6 @@ async function checkDatabase() {
           );
           console.log(`Columns for ${tableName}:`, columns);
           
-          // Check for data
           const [count] = await sequelize.query(`SELECT COUNT(*) as count FROM "${tableName}"`);
           console.log(`Row count for ${tableName}:`, count);
         } catch (tableError) {
@@ -68,7 +65,6 @@ async function checkDatabase() {
       }
     }
     
-    // Close the connection
     await sequelize.close();
     console.log('Database connection closed');
     
@@ -93,7 +89,6 @@ async function checkDatabase() {
   }
 }
 
-// Run the check
 checkDatabase()
   .then(success => {
     console.log('Database check completed with status:', success ? 'SUCCESS' : 'FAILURE');

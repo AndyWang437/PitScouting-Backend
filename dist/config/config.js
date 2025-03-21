@@ -4,10 +4,8 @@ const parseDbUrl = (url) => {
   if (!url) return {};
   
   try {
-    // Handle both postgres:// and postgresql:// formats
     const normalizedUrl = url.replace(/^postgres:\/\//, 'postgresql://');
     
-    // For SQLite
     if (url.startsWith('sqlite:')) {
       return {
         dialect: 'sqlite',
@@ -15,7 +13,6 @@ const parseDbUrl = (url) => {
       };
     }
     
-    // For PostgreSQL
     const matches = normalizedUrl.match(/postgresql:\/\/([^:]+):([^@]+)@([^:]+):(\d+)\/(.+)/);
     if (!matches) {
       console.error('Invalid DATABASE_URL format:', url);

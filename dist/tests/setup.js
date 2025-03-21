@@ -7,4 +7,3 @@ beforeAll(async () => {
 afterAll(async () => {
     await models_1.sequelize.close();
 });
-//# sourceMappingURL=setup.js.map

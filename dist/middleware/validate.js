@@ -13,4 +13,3 @@ const validate = (validations) => {
     };
 };
 exports.validate = validate;
-//# sourceMappingURL=validate.js.map

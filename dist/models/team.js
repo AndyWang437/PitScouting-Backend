@@ -106,4 +106,3 @@ class Team extends sequelize_1.Model {
     }
 }
 exports.default = Team;
-//# sourceMappingURL=team.js.map

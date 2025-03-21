@@ -146,4 +146,3 @@ const getAllTeams = async (req, res) => {
     }
 };
 exports.getAllTeams = getAllTeams;
-//# sourceMappingURL=team.controller.js.map

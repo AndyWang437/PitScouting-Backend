@@ -5,11 +5,9 @@ const fs = require('fs');
 async function insertTestTeam() {
   console.log('Inserting test team with number 1334...');
   
-  // Use SQLite database in development
   const dbPath = './database.sqlite';
   console.log(`Using SQLite database at: ${dbPath}`);
   
-  // Create Sequelize instance
   const sequelize = new Sequelize({
     dialect: 'sqlite',
     storage: dbPath,
@@ -17,11 +15,9 @@ async function insertTestTeam() {
   });
   
   try {
-    // Test database connection
     await sequelize.authenticate();
     console.log('Database connection established successfully.');
     
-    // Check if team 1334 already exists
     const [existingTeams] = await sequelize.query(
       `SELECT * FROM teams WHERE "teamNumber" = 1334`
     );
@@ -36,7 +32,6 @@ async function insertTestTeam() {
       console.log('Existing team 1334 deleted.');
     }
     
-    // Create test team with direct SQL
     const coralLevels = JSON.stringify(['Level 1', 'Level 2', 'Level 3']);
     
     const insertQuery = `
@@ -85,7 +80,6 @@ async function insertTestTeam() {
     console.log('Executing insert query...');
     await sequelize.query(insertQuery);
     
-    // Verify team was created
     const [teams] = await sequelize.query(
       `SELECT * FROM teams WHERE "teamNumber" = 1334`
     );

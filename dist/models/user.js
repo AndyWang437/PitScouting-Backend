@@ -52,4 +52,3 @@ class User extends sequelize_1.Model {
     }
 }
 exports.User = User;
-//# sourceMappingURL=user.js.map

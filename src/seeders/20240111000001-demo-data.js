@@ -7,7 +7,6 @@ module.exports = {
   async up(queryInterface, Sequelize) {
     const password = await bcrypt.hash('otisit!!!', 10);
 
-    // First, create the admin user
     await queryInterface.bulkInsert('users', [{
       name: 'Admin User',
       email: '1334admin@gmail.com',
@@ -17,7 +16,6 @@ module.exports = {
       updatedAt: new Date()
     }]);
 
-    // Then, create the demo team
     await queryInterface.bulkInsert('teams', [{
       teamNumber: 1334,
       autoScoreCoral: true,
@@ -42,7 +40,6 @@ module.exports = {
   },
 
   async down(queryInterface, Sequelize) {
-    // Remove seeded data in reverse order
     await queryInterface.bulkDelete('teams', null, {});
     await queryInterface.bulkDelete('users', null, {});
   }

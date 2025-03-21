@@ -36,8 +36,7 @@ else {
     console.log('Using sequelize instance from db/init');
     exports.sequelize = sequelize = init_1.sequelize;
 }
-// Initialize models without trying to create tables
-// Tables will be created by the setup.ts script
+
 const initializeModels = () => {
     try {
         console.log('Initializing User model...');

@@ -27,7 +27,6 @@ describe('Auth Routes', () => {
 
   describe('POST /api/auth/login', () => {
     it('should login an existing user', async () => {
-      // Create a user first
       await User.create({
         name: 'Test User',
         email: 'test@example.com',

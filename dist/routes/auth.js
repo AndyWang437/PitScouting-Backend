@@ -51,4 +51,3 @@ router.post('/login', [
     (0, express_validator_1.body)('password').notEmpty(),
 ], authController.login);
 exports.default = router;
-//# sourceMappingURL=auth.js.map

@@ -8,7 +8,6 @@ import fs from 'fs';
 import path from 'path';
 import { sequelize } from '../db/init';
 
-// Define interfaces for database records
 interface TeamRecord {
   id: number;
   teamNumber: number;
@@ -32,7 +31,6 @@ interface TeamRecord {
   updatedAt: Date;
 }
 
-// Add this function at the top of the file, after imports
 const checkTeamsTable = async (): Promise<boolean> => {
   try {
     const dialect = sequelize.getDialect();
@@ -46,7 +44,6 @@ const checkTeamsTable = async (): Promise<boolean> => {
     console.log('Teams table exists:', tableExists);
     
     if (!tableExists) {
-      // If table doesn't exist, try to create it
       console.log('Teams table does not exist, attempting to create it...');
       try {
         if (dialect === 'postgres') {
@@ -120,7 +117,6 @@ export const createTeam = async (req: Request, res: Response): Promise<void> => 
     console.log('Received team data:', JSON.stringify(req.body, null, 2));
     console.log('File:', req.file);
     
-    // Check if teams table exists
     const tableExists = await checkTeamsTable();
     if (!tableExists) {
       console.error('Teams table does not exist');
@@ -132,13 +128,11 @@ export const createTeam = async (req: Request, res: Response): Promise<void> => 
       return;
     }
     
-    // Validate teamNumber
     if (!req.body.teamNumber) {
       console.error('Team number is missing in request');
       throw new Error('Team number is required');
     }
 
-    // Parse and validate numeric values first
     const teamNumber = parseInt(req.body.teamNumber);
     const robotWidth = req.body.robotWidth ? parseFloat(req.body.robotWidth) : null;
     const robotLength = req.body.robotLength ? parseFloat(req.body.robotLength) : null;
@@ -150,7 +144,6 @@ export const createTeam = async (req: Request, res: Response): Promise<void> => 
       throw new Error('Invalid team number format');
     }
 
-    // Validate numeric values
     [robotWidth, robotLength, robotHeight, robotWeight].forEach((value, index) => {
       if (value !== null && isNaN(value)) {
         console.error(`Invalid numeric value for ${['width', 'length', 'height', 'weight'][index]}:`, value);
@@ -158,7 +151,6 @@ export const createTeam = async (req: Request, res: Response): Promise<void> => 
       }
     });
 
-    // Handle coralLevels
     let coralLevels: string[] = [];
     try {
       if (typeof req.body.coralLevels === 'string') {
@@ -171,7 +163,6 @@ export const createTeam = async (req: Request, res: Response): Promise<void> => 
             console.log('Parsed coralLevels from string:', coralLevels);
           } catch (parseError) {
             console.error('Error parsing coralLevels JSON:', parseError);
-            // If it's not valid JSON, treat it as a single item
             coralLevels = [req.body.coralLevels];
             console.log('Using coralLevels as single item:', coralLevels);
           }
@@ -187,7 +178,6 @@ export const createTeam = async (req: Request, res: Response): Promise<void> => 
       coralLevels = [];
     }
     
-    // Handle boolean values properly
     const parseBooleanField = (value: any) => {
       if (typeof value === 'boolean') return value;
       if (typeof value === 'string') {
@@ -196,7 +186,6 @@ export const createTeam = async (req: Request, res: Response): Promise<void> => 
       return false;
     };
 
-    // Properly handle the image URL
     let imageUrl = null;
     if (req.file) {
       imageUrl = `/uploads/${req.file.filename}`;
@@ -227,17 +216,13 @@ export const createTeam = async (req: Request, res: Response): Promise<void> => 
 
     console.log('Processed team data:', JSON.stringify(processedData, null, 2));
 
-    // Try direct SQL approach
     try {
-      // Check if team already exists
       console.log('Checking if team already exists with number:', teamNumber);
       
-      // First try with Sequelize
       try {
         const existingTeam = await Team.findOne({ where: { teamNumber } });
         if (existingTeam) {
           console.log('Team exists, updating:', existingTeam.id);
-          // Update existing team
           await existingTeam.update(processedData);
           console.log('Team updated successfully:', existingTeam.toJSON());
           res.status(200).json(existingTeam);
@@ -245,10 +230,8 @@ export const createTeam = async (req: Request, res: Response): Promise<void> => 
         }
       } catch (sequelizeError) {
         console.error('Sequelize error finding team:', sequelizeError);
-        // Continue with direct SQL approach
       }
       
-      // Try direct SQL approach
       const isSqlite = sequelize.getDialect() === 'sqlite';
       const [existingTeams] = await sequelize.query(
         `SELECT * FROM teams WHERE "teamNumber" = ${teamNumber}`
@@ -258,7 +241,6 @@ export const createTeam = async (req: Request, res: Response): Promise<void> => 
         const existingTeam = existingTeams[0] as TeamRecord;
         console.log('Team exists (SQL), updating:', existingTeam.id);
         
-        // Build update query
         const updateFields = Object.entries(processedData)
           .map(([key, value]) => {
             if (value === null) {
@@ -308,7 +290,6 @@ export const createTeam = async (req: Request, res: Response): Promise<void> => 
       } else {
         console.log('Team does not exist, creating new team');
         
-        // Build insert query
         const keys = Object.keys(processedData).map(k => `"${k}"`).join(', ');
         const values = Object.entries(processedData).map(([_, value]) => {
           if (value === null) {
@@ -348,14 +329,12 @@ export const createTeam = async (req: Request, res: Response): Promise<void> => 
         try {
           const [newTeams] = await sequelize.query(insertQuery);
           
-          // Check if newTeams is defined and has elements
           if (newTeams && Array.isArray(newTeams) && newTeams.length > 0) {
             console.log('Team created successfully (SQL):', newTeams[0]);
             res.status(201).json(newTeams[0]);
           } else {
             console.log('Team created but no data returned from SQL query');
             
-            // Try to create the team using Sequelize ORM
             try {
               console.log('Trying to create team using Sequelize ORM');
               const newTeam = await Team.create({
@@ -368,7 +347,6 @@ export const createTeam = async (req: Request, res: Response): Promise<void> => 
             } catch (ormError) {
               console.error('Error creating team with Sequelize:', ormError);
               
-              // Fetch the team we just created
               try {
                 const [createdTeams] = await sequelize.query(
                   `SELECT * FROM teams WHERE "teamNumber" = ${teamNumber}`
@@ -398,7 +376,6 @@ export const createTeam = async (req: Request, res: Response): Promise<void> => 
         } catch (insertError) {
           console.error('Error executing insert query:', insertError);
           
-          // Try to create the team using Sequelize ORM as a fallback
           try {
             console.log('Trying to create team using Sequelize ORM after SQL error');
             const newTeam = await Team.create({
@@ -409,7 +386,7 @@ export const createTeam = async (req: Request, res: Response): Promise<void> => 
             res.status(201).json(newTeam);
           } catch (ormError) {
             console.error('Error creating team with Sequelize after SQL error:', ormError);
-            throw insertError; // Re-throw the original error
+            throw insertError; 
           }
         }
       }
@@ -442,7 +419,6 @@ export const getTeam = async (req: Request, res: Response): Promise<any> => {
     
     console.log('Looking up team with number:', teamNumber);
     
-    // Check if teams table exists
     const dialect = sequelize.getDialect();
     console.log('Database dialect:', dialect);
     
@@ -460,7 +436,6 @@ export const getTeam = async (req: Request, res: Response): Promise<any> => {
       return res.status(500).json({ error: 'Teams table does not exist' });
     }
     
-    // Try direct SQL approach
     const [teams] = await sequelize.query(
       `SELECT * FROM teams WHERE "teamNumber" = ${teamNumber}`
     );
@@ -470,36 +445,30 @@ export const getTeam = async (req: Request, res: Response): Promise<any> => {
       return res.status(404).json({ error: 'Team not found' });
     }
     
-    const team = teams[0] as any; // Type as any to avoid TypeScript errors
+    const team = teams[0] as any; 
     console.log('Team found:', teamNumber);
     
-    // Parse coralLevels if it's a string
     if (team.coralLevels) {
       console.log('Team coralLevels (raw):', team.coralLevels);
       
       if (typeof team.coralLevels === 'string') {
         try {
-          // Handle different string formats
           if (team.coralLevels.startsWith('{') && team.coralLevels.endsWith('}')) {
-            // PostgreSQL array format like "{\"level1\",\"level2\"}"
             const cleanedString = team.coralLevels
-              .replace(/^\{|\}$/g, '') // Remove { and }
+              .replace(/^\{|\}$/g, '') 
               .split(',')
-              .map((item: string) => item.trim().replace(/^"|"$/g, '')); // Remove quotes
+              .map((item: string) => item.trim().replace(/^"|"$/g, '')); 
             
             team.coralLevels = cleanedString;
           } else {
-            // Try standard JSON parse
             team.coralLevels = JSON.parse(team.coralLevels);
           }
         } catch (error) {
           console.error('Error parsing coralLevels:', error);
-          // Fallback to empty array if parsing fails
           team.coralLevels = [];
         }
       }
       
-      // Ensure coralLevels is always an array
       if (!Array.isArray(team.coralLevels)) {
         team.coralLevels = [team.coralLevels];
       }
@@ -507,7 +476,6 @@ export const getTeam = async (req: Request, res: Response): Promise<any> => {
       team.coralLevels = [];
     }
     
-    // Double check that coralLevels is an array before sending
     if (!Array.isArray(team.coralLevels)) {
       console.error('coralLevels is still not an array after processing:', team.coralLevels);
       team.coralLevels = [];
@@ -545,12 +513,10 @@ export const updateTeam = async (req: Request, res: Response): Promise<void> => 
       return;
     }
 
-    // Handle image upload if present
     let updateData = { ...req.body };
     if (req.file) {
       updateData.imageUrl = `/uploads/${req.file.filename}`;
       
-      // Remove old image if it exists
       if (team.imageUrl) {
         const oldFilename = path.basename(team.imageUrl);
         const uploadsDir = process.env.NODE_ENV === 'production'
@@ -581,7 +547,6 @@ export const getAllTeams = async (req: Request, res: Response): Promise<void> =>
   try {
     console.log('Fetching all teams with query params:', req.query);
     
-    // Check if teams table exists
     const tableExists = await checkTeamsTable();
     if (!tableExists) {
       console.error('Teams table does not exist');
@@ -593,15 +558,12 @@ export const getAllTeams = async (req: Request, res: Response): Promise<void> =>
       return;
     }
     
-    // Try direct SQL approach
     try {
       console.log('SQL Query: SELECT * FROM teams');
       const [teams] = await sequelize.query('SELECT * FROM teams');
       console.log(`Found ${teams.length} teams`);
       
-      // Process each team to handle coralLevels
       const processedTeams = teams.map((team: any) => {
-        // Parse coralLevels if it's a string
         if (typeof team.coralLevels === 'string') {
           try {
             team.coralLevels = JSON.parse(team.coralLevels);
@@ -619,13 +581,11 @@ export const getAllTeams = async (req: Request, res: Response): Promise<void> =>
     } catch (sqlError) {
       console.error('SQL error fetching teams:', sqlError);
       
-      // Try with Sequelize ORM as fallback
       try {
         console.log('Trying to fetch teams with Sequelize ORM');
         const teams = await Team.findAll();
         console.log(`Found ${teams.length} teams with Sequelize`);
         
-        // Process each team to handle coralLevels
         const processedTeams = teams.map(team => {
           const teamJSON = team.toJSON();
           teamJSON.coralLevels = team.getCoralLevelsArray();
@@ -635,7 +595,7 @@ export const getAllTeams = async (req: Request, res: Response): Promise<void> =>
         res.status(200).json(processedTeams);
       } catch (ormError) {
         console.error('Error fetching teams with Sequelize:', ormError);
-        throw sqlError; // Re-throw the original error
+        throw sqlError; 
       }
     }
   } catch (error: any) {

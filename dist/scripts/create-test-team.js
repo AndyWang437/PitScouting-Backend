@@ -2,14 +2,11 @@ const { Sequelize } = require('sequelize');
 const path = require('path');
 const fs = require('fs');
 
-// Determine environment
 const isProduction = process.env.NODE_ENV === 'production';
 console.log(`Environment: ${isProduction ? 'production' : 'development'}`);
 
-// Database configuration
 let sequelize;
 if (isProduction) {
-  // Production database (PostgreSQL)
   const dbUrl = process.env.DATABASE_URL;
   console.log(`Using production database URL: ${dbUrl}`);
   
@@ -24,7 +21,6 @@ if (isProduction) {
     logging: false
   });
 } else {
-  // Development database (SQLite)
   const dbPath = path.join(process.cwd(), 'database.sqlite');
   console.log(`Using development database at: ${dbPath}`);
   
@@ -37,11 +33,9 @@ if (isProduction) {
 
 async function createTestTeam() {
   try {
-    // Test database connection
     await sequelize.authenticate();
     console.log('Database connection established successfully.');
     
-    // Check if teams table exists
     const tables = await sequelize.query(
       "SELECT name FROM sqlite_master WHERE type='table' AND name='teams'",
       { type: sequelize.QueryTypes.SELECT }
@@ -55,7 +49,6 @@ async function createTestTeam() {
       return;
     }
     
-    // Check if team 1334 already exists
     const existingTeam = await sequelize.query(
       "SELECT * FROM teams WHERE teamNumber = 1334",
       { type: sequelize.QueryTypes.SELECT }
@@ -66,7 +59,6 @@ async function createTestTeam() {
       return;
     }
     
-    // Create test team
     const insertQuery = `
       INSERT INTO teams (
         teamNumber, autoScoreCoral, autoScoreAlgae, mustStartSpecificPosition, 
@@ -86,7 +78,6 @@ async function createTestTeam() {
     await sequelize.query(insertQuery);
     console.log('Test team 1334 created successfully!');
     
-    // Verify team was created
     const team = await sequelize.query(
       "SELECT * FROM teams WHERE teamNumber = 1334",
       { type: sequelize.QueryTypes.SELECT }

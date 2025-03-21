@@ -28,7 +28,6 @@ const models_1 = require("../models");
     });
     (0, globals_1.describe)('POST /api/auth/login', () => {
         (0, globals_1.it)('should login an existing user', async () => {
-            // Create a user first
             await models_1.User.create({
                 name: 'Test User',
                 email: 'test@example.com',

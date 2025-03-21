@@ -56,4 +56,3 @@ models_1.sequelize.authenticate()
     console.error('Unable to connect to the database:', error);
 });
 exports.default = app;
-//# sourceMappingURL=index.js.map

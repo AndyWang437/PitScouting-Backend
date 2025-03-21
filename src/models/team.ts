@@ -10,7 +10,7 @@ class Team extends Model {
   public teleopDealgifying!: boolean;
   public teleopPreference!: string | null;
   public scoringPreference!: string | null;
-  public coralLevels!: string[] | string; // Allow string for SQLite storage
+  public coralLevels!: string[] | string; 
   public endgameType!: string;
   public robotWidth!: number | null;
   public robotLength!: number | null;
@@ -22,7 +22,6 @@ class Team extends Model {
   public createdAt!: Date;
   public updatedAt!: Date;
 
-  // Helper method to always get coralLevels as an array regardless of storage format
   public getCoralLevelsArray(): string[] {
     const levels = this.coralLevels;
     if (typeof levels === 'string') {
@@ -99,11 +98,9 @@ class Team extends Model {
             this.setDataValue('coralLevels', JSON.stringify(value));
           } else if (typeof value === 'string') {
             try {
-              // Try to parse it as JSON first
               JSON.parse(value);
               this.setDataValue('coralLevels', value);
             } catch (e) {
-              // If it's not valid JSON, store it as a JSON string
               this.setDataValue('coralLevels', JSON.stringify([value]));
             }
           } else {

@@ -19,33 +19,26 @@ const setup_1 = require("./db/setup");
 const app = express();
 const port = parseInt(process.env.PORT || '10000', 10);
 const env = process.env.NODE_ENV || 'development';
-// Update CORS configuration to only allow your deployed frontend
 app.use((0, cors_1.default)({
-    origin: '*', // Allow all origins temporarily for debugging
+    origin: '*', 
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization', 'Accept', 'X-Requested-With'],
     exposedHeaders: ['Content-Range', 'X-Content-Range']
 }));
-// Add CORS preflight handler for all routes
 app.options('*', (0, cors_1.default)());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
-// Determine uploads directory
 const uploadsDir = process.env.NODE_ENV === 'production'
     ? '/opt/render/project/src/uploads'
     : path_1.default.join(__dirname, '../uploads');
 console.log('Uploads directory:', uploadsDir);
-// Ensure uploads directory exists
 if (!fs_1.default.existsSync(uploadsDir)) {
     fs_1.default.mkdirSync(uploadsDir, { recursive: true });
     console.log('Created uploads directory');
 }
-// Serve files from the uploads directory
 app.use('/uploads', express.static(uploadsDir));
-// Also serve files from /api/storage for backward compatibility
 app.use('/api/storage', express.static(uploadsDir));
-// Add a direct route handler for /api/storage/:filename to ensure it works
 app.get('/api/storage/:filename', (req, res) => {
     const filename = req.params.filename;
     const filePath = path_1.default.join(uploadsDir, filename);
@@ -58,7 +51,6 @@ app.get('/api/storage/:filename', (req, res) => {
         res.status(404).json({ error: 'Image not found' });
     }
 });
-// Add a route to check if an image exists
 app.get('/check-image/:filename', (req, res) => {
     const filename = req.params.filename;
     const imagePath = path_1.default.join(uploadsDir, filename);
@@ -78,7 +70,6 @@ app.get('/check-image/:filename', (req, res) => {
         });
     }
 });
-// Error handling middleware
 app.use((err, req, res, next) => {
     console.error('Unhandled error:', err);
     res.status(500).json({
@@ -87,24 +78,21 @@ app.use((err, req, res, next) => {
         stack: process.env.NODE_ENV === 'development' ? err.stack : undefined
     });
 });
-// Root route
 app.get('/', (_req, res) => {
     res.json({
         message: 'Scouting App API is running',
         environment: env,
-        corsOrigin: '*', // Updated to match our CORS configuration
+        corsOrigin: '*', 
         uploadsDir: uploadsDir,
         databaseUrl: process.env.DATABASE_URL ? `${process.env.DATABASE_URL.substring(0, 25)}...` : 'Not set'
     });
 });
-// Add a test endpoint
 app.get('/test', (_req, res) => {
     res.json({
         message: 'Test endpoint is working',
         timestamp: new Date().toISOString()
     });
 });
-// Add a test endpoint for team details
 app.get('/test-team/:teamNumber', async (req, res) => {
     try {
         const teamNumber = parseInt(req.params.teamNumber);
@@ -112,7 +100,6 @@ app.get('/test-team/:teamNumber', async (req, res) => {
             res.status(400).json({ error: 'Invalid team number' });
             return;
         }
-        // Try direct SQL approach
         const dialect = init_1.sequelize.getDialect();
         console.log('Database dialect:', dialect);
         const [teams] = await init_1.sequelize.query(`SELECT * FROM teams WHERE "teamNumber" = ${teamNumber}`);
@@ -120,8 +107,7 @@ app.get('/test-team/:teamNumber', async (req, res) => {
             res.status(404).json({ error: 'Team not found' });
             return;
         }
-        const team = teams[0]; // Type as any to avoid TypeScript errors
-        // Parse coralLevels if it's a string
+        const team = teams[0]; 
         if (typeof team.coralLevels === 'string') {
             try {
                 team.coralLevels = JSON.parse(team.coralLevels);
@@ -149,10 +135,8 @@ app.get('/test-team/:teamNumber', async (req, res) => {
         });
     }
 });
-// Add a simple endpoint to insert a test team
 app.get('/insert-test-team', async (_req, res) => {
     try {
-        // Check if teams table exists
         const [tables] = await init_1.sequelize.query("SELECT name FROM sqlite_master WHERE type='table' AND name='teams'");
         const teamsTableExists = tables.length > 0;
         console.log(`Teams table exists: ${teamsTableExists}`);
@@ -161,7 +145,6 @@ app.get('/insert-test-team', async (_req, res) => {
                 error: 'Teams table does not exist. Please run database setup first.'
             });
         }
-        // Check if team 1334 already exists
         const [existingTeams] = await init_1.sequelize.query("SELECT * FROM teams WHERE teamNumber = 1334");
         if (existingTeams && existingTeams.length > 0) {
             return res.json({
@@ -169,7 +152,6 @@ app.get('/insert-test-team', async (_req, res) => {
                 team: existingTeams[0]
             });
         }
-        // Create test team
         const insertQuery = `
       INSERT INTO teams (
         teamNumber, autoScoreCoral, autoScoreAlgae, mustStartSpecificPosition, 
@@ -186,7 +168,6 @@ app.get('/insert-test-team', async (_req, res) => {
       )
     `;
         await init_1.sequelize.query(insertQuery);
-        // Verify team was created
         const [teams] = await init_1.sequelize.query("SELECT * FROM teams WHERE teamNumber = 1334");
         if (teams && teams.length > 0) {
             return res.json({
@@ -206,7 +187,6 @@ app.get('/insert-test-team', async (_req, res) => {
         });
     }
 });
-// Add this function before the app.get('/health') endpoint
 const checkDatabaseTables = async () => {
     try {
         const dialect = init_1.sequelize.getDialect();
@@ -230,7 +210,6 @@ const checkDatabaseTables = async () => {
                 }
             };
         }
-        // Check if tables have data
         const tableData = {};
         for (const table of requiredTables) {
             try {
@@ -240,7 +219,7 @@ const checkDatabaseTables = async () => {
             }
             catch (countError) {
                 console.error(`Error counting rows in ${table}:`, countError);
-                tableData[table] = -1; // Error indicator
+                tableData[table] = -1; 
             }
         }
         return {
@@ -261,11 +240,9 @@ const checkDatabaseTables = async () => {
         };
     }
 };
-// Update the health check endpoint
 app.get('/health', (req, res) => {
     res.status(200).json({ status: 'ok', message: 'Server is running' });
 });
-// Add a more detailed database status endpoint
 app.get('/db-status', async (req, res) => {
     try {
         const dbStatus = await checkDatabaseTables();
@@ -280,7 +257,6 @@ app.get('/db-status', async (req, res) => {
         });
     }
 });
-// Setup database and run migrations route
 app.post('/setup-database', async (_req, res) => {
     try {
         console.log('Manually triggering database setup...');
@@ -300,14 +276,12 @@ app.post('/setup-database', async (_req, res) => {
         });
     }
 });
-// Set up routes
 app.use('/api/auth', auth_1.default);
 app.use('/api/teams', teams_1.default);
 app.use('/api/matches', matches_1.default);
 app.use('/', test_routes_1.default);
 app.use('/', image_routes_1.default);
 app.use('/', direct_fix_1.default);
-// Redirect old image paths to the new format
 app.get('/uploads/:filename', (req, res) => {
     const filename = req.params.filename;
     const filePath = path_1.default.join(uploadsDir, filename);
@@ -318,7 +292,6 @@ app.get('/uploads/:filename', (req, res) => {
         res.status(404).json({ error: 'Image not found' });
     }
 });
-// Function to check if tables exist
 async function checkTablesExist() {
     try {
         const dialect = init_1.sequelize.getDialect();
@@ -332,7 +305,6 @@ async function checkTablesExist() {
         return false;
     }
 }
-// Function to create tables directly with SQL
 async function createTablesDirectly() {
     console.log('Creating tables directly with SQL...');
     try {
@@ -402,7 +374,6 @@ async function createTablesDirectly() {
         return false;
     }
 }
-// Add a test HTML page
 app.get('/test-page', (_req, res) => {
     const html = `
     <!DOCTYPE html>
@@ -480,7 +451,6 @@ app.get('/test-page', (_req, res) => {
   `;
     res.send(html);
 });
-// Add a test HTML page with CORS debugging
 app.get('/test-cors', (_req, res) => {
     const html = `
     <!DOCTYPE html>
@@ -540,7 +510,6 @@ app.get('/test-cors', (_req, res) => {
   `;
     res.send(html);
 });
-// Add a simple HTML page to test team details
 app.get('/test-team-page', (_req, res) => {
     const html = `
     <!DOCTYPE html>
@@ -585,18 +554,15 @@ app.get('/test-team-page', (_req, res) => {
       </div>
       
       <script>
-        // Format boolean values
         function formatBoolean(value) {
           return value ? 'Yes' : 'No';
         }
         
-        // Format null values
         function formatValue(value) {
           if (value === null || value === undefined) return 'N/A';
           return value;
         }
         
-        // Parse coral levels
         function parseCoralLevels(coralLevels) {
           if (!coralLevels) return [];
           
@@ -612,7 +578,6 @@ app.get('/test-team-page', (_req, res) => {
           return Array.isArray(coralLevels) ? coralLevels : [];
         }
         
-        // Fetch team details
         async function fetchTeam() {
           const resultDiv = document.getElementById('result');
           const teamNumber = document.getElementById('team-number').value;
@@ -634,13 +599,10 @@ app.get('/test-team-page', (_req, res) => {
             const team = await response.json();
             console.log('Team data:', team);
             
-            // Parse coral levels
             team.coralLevels = parseCoralLevels(team.coralLevels);
             
-            // Create HTML for team details
             let html = '<h2>Team ' + team.teamNumber + '</h2>';
             
-            // Team info grid
             html += '<div class="team-info">';
             html += '<div><strong>Auto Score Coral:</strong> ' + formatBoolean(team.autoScoreCoral) + '</div>';
             html += '<div><strong>Auto Score Algae:</strong> ' + formatBoolean(team.autoScoreAlgae) + '</div>';
@@ -657,7 +619,6 @@ app.get('/test-team-page', (_req, res) => {
             html += '<div><strong>Drivetrain Type:</strong> ' + formatValue(team.drivetrainType) + '</div>';
             html += '</div>';
             
-            // Coral levels
             html += '<div class="coral-levels"><strong>Coral Levels:</strong> ';
             
             if (team.coralLevels && team.coralLevels.length > 0) {
@@ -670,13 +631,11 @@ app.get('/test-team-page', (_req, res) => {
             
             html += '</div>';
             
-            // Notes
             html += '<div style="margin-top: 15px;">';
             html += '<strong>Notes:</strong>';
             html += '<div>' + formatValue(team.notes) + '</div>';
             html += '</div>';
             
-            // Raw data
             html += '<div style="margin-top: 15px;">';
             html += '<strong>Raw Data:</strong>';
             html += '<pre>' + JSON.stringify(team, null, 2) + '</pre>';
@@ -694,7 +653,6 @@ app.get('/test-team-page', (_req, res) => {
   `;
     res.send(html);
 });
-// Add a diagnostic page for frontend debugging
 app.get('/frontend-debug', (_req, res) => {
     const html = `
     <!DOCTYPE html>
@@ -758,7 +716,6 @@ app.get('/frontend-debug', (_req, res) => {
       </div>
       
       <script>
-        // Test API endpoint
         async function testAPI() {
           const resultDiv = document.getElementById('api-result');
           resultDiv.innerHTML = 'Testing API...';
@@ -774,7 +731,6 @@ app.get('/frontend-debug', (_req, res) => {
           }
         }
         
-        // Test CORS
         async function testCORS() {
           const resultDiv = document.getElementById('cors-result');
           const url = document.getElementById('cors-url').value;
@@ -792,7 +748,6 @@ app.get('/frontend-debug', (_req, res) => {
           }
         }
         
-        // Test Team Details
         async function testTeam() {
           const resultDiv = document.getElementById('team-result');
           const teamNumber = document.getElementById('team-number').value;
@@ -808,7 +763,6 @@ app.get('/frontend-debug', (_req, res) => {
             
             const team = await response.json();
             
-            // Check if coralLevels is present and parse it if needed
             if (team.coralLevels) {
               if (typeof team.coralLevels === 'string') {
                 try {
@@ -839,20 +793,16 @@ const startServer = async () => {
         console.log('Setting up database (creating tables and admin user)...');
         await (0, setup_1.setupDatabase)();
         console.log('Database setup completed successfully');
-        // Verify tables exist
         const tablesExist = await checkTablesExist();
         if (!tablesExist) {
             console.error('Tables do not exist after setup! Attempting to create tables again...');
-            // Try one more time with setupDatabase
             try {
                 console.log('Retrying database setup...');
                 await (0, setup_1.setupDatabase)();
                 console.log('Database setup retry completed');
-                // Check again
                 const tablesExistAfterRetry = await checkTablesExist();
                 if (!tablesExistAfterRetry) {
                     console.error('Tables still do not exist after retry! Attempting direct SQL approach...');
-                    // Try direct SQL approach
                     const directSuccess = await createTablesDirectly();
                     if (directSuccess) {
                         console.log('Tables created successfully with direct SQL approach');
@@ -867,7 +817,6 @@ const startServer = async () => {
             }
             catch (retryError) {
                 console.error('Error during database setup retry:', retryError);
-                // Try direct SQL approach as last resort
                 const directSuccess = await createTablesDirectly();
                 if (directSuccess) {
                     console.log('Tables created successfully with direct SQL approach after retry error');

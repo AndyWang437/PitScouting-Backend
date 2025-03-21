@@ -20,7 +20,6 @@ const initDb = async () => {
     await sequelize.authenticate();
     console.log('Database connection established successfully.');
     
-    // Force sync in development only
     if (env === 'development') {
       await sequelize.sync({ force: true });
       console.log('Database synced in development mode');

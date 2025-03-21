@@ -31,4 +31,3 @@ else {
 }
 user_1.User.initialize(sequelize);
 team_1.default.initialize(sequelize);
-//# sourceMappingURL=index.js.map

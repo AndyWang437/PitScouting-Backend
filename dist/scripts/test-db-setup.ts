@@ -2,7 +2,6 @@ import { sequelize } from '../src/db/init';
 import { setupDatabase } from '../src/db/setup';
 import { Team, Match } from '../src/models';
 
-// Define interfaces for database records
 interface TeamRecord {
   id: number;
   teamNumber: number;
@@ -23,10 +22,8 @@ async function testDatabaseSetup() {
     console.log('Testing database setup...');
     console.log('Database dialect:', sequelize.getDialect());
     
-    // Initialize the database
     await setupDatabase();
     
-    // Test creating a team with array data
     console.log('\nTesting team creation with array data...');
     const teamData = {
       teamNumber: 9999,
@@ -48,7 +45,6 @@ async function testDatabaseSetup() {
       imageUrl: null
     };
     
-    // Create or update the team
     let team;
     try {
       team = await Team.findOne({ where: { teamNumber: 9999 } });
@@ -65,7 +61,6 @@ async function testDatabaseSetup() {
       throw error;
     }
     
-    // Retrieve the team and check the array data
     console.log('\nRetrieving team to check array data...');
     const retrievedTeam = await Team.findOne({ where: { teamNumber: 9999 } });
     if (!retrievedTeam) {
@@ -80,7 +75,6 @@ async function testDatabaseSetup() {
       console.log('Using getCoralLevelsArray() for SQLite:', retrievedTeam.getCoralLevelsArray());
     }
     
-    // Test creating a match with array data
     console.log('\nTesting match creation with array data...');
     const matchData = {
       matchNumber: 999,
@@ -96,7 +90,6 @@ async function testDatabaseSetup() {
       notes: 'Test match'
     };
     
-    // Create or update the match
     let match;
     try {
       match = await Match.findOne({ 
@@ -119,7 +112,6 @@ async function testDatabaseSetup() {
       throw error;
     }
     
-    // Retrieve the match and check the array data
     console.log('\nRetrieving match to check array data...');
     const retrievedMatch = await Match.findOne({ 
       where: { 
@@ -140,11 +132,9 @@ async function testDatabaseSetup() {
       console.log('Using getCoralLevelsArray() for SQLite:', retrievedMatch.getCoralLevelsArray());
     }
     
-    // Test direct SQL queries
     console.log('\nTesting direct SQL queries...');
     const isSqlite = sequelize.getDialect() === 'sqlite';
     
-    // Query team
     const [teamsResult] = await sequelize.query(
       `SELECT * FROM teams WHERE "teamNumber" = 9999`
     );
@@ -162,7 +152,6 @@ async function testDatabaseSetup() {
       console.log('Parsed coralLevels from SQL:', JSON.parse(teamRecord.coralLevels));
     }
     
-    // Query match
     const [matchesResult] = await sequelize.query(
       `SELECT * FROM matches WHERE "matchNumber" = 999 AND "teamNumber" = 9999`
     );
@@ -188,10 +177,8 @@ async function testDatabaseSetup() {
       console.error('Error stack:', error.stack);
     }
   } finally {
-    // Close the database connection
     await sequelize.close();
   }
 }
 
-// Run the test
 testDatabaseSetup(); 

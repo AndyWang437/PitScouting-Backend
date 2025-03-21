@@ -49,8 +49,7 @@ if ('use_env_variable' in dbConfig && dbConfig.use_env_variable) {
   sequelize = dbSequelize;
 }
 
-// Initialize models without trying to create tables
-// Tables will be created by the setup.ts script
+
 const initializeModels = () => {
   try {
     console.log('Initializing User model...');

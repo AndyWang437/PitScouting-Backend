@@ -34,4 +34,3 @@ const config = {
     }
 };
 exports.default = config;
-//# sourceMappingURL=env.js.map

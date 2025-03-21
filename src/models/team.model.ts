@@ -78,14 +78,12 @@ export const initTeamModel = (sequelize: Sequelize) => {
         
         try {
           if (typeof value === 'string') {
-            // Handle PostgreSQL array format
             if (value.startsWith('{') && value.endsWith('}')) {
               return value
-                .replace(/^\{|\}$/g, '') // Remove { and }
+                .replace(/^\{|\}$/g, '') 
                 .split(',')
-                .map(item => item.trim().replace(/^"|"$/g, '')); // Remove quotes
+                .map(item => item.trim().replace(/^"|"$/g, '')); 
             }
-            // Try standard JSON parse
             return JSON.parse(value);
           }
           return value;
@@ -139,7 +137,6 @@ export const initTeamModel = (sequelize: Sequelize) => {
     timestamps: true,
   });
 
-  // Add method to get coralLevels as array
   (Team as any).prototype.getCoralLevelsArray = function() {
     const coralLevels = this.getDataValue('coralLevels');
     
@@ -147,17 +144,15 @@ export const initTeamModel = (sequelize: Sequelize) => {
     
     if (typeof coralLevels === 'string') {
       try {
-        // Handle PostgreSQL array format like "{\"level1\",\"level2\"}"
         if (coralLevels.startsWith('{') && coralLevels.endsWith('}')) {
           const cleanedString = coralLevels
-            .replace(/^\{|\}$/g, '') // Remove { and }
+            .replace(/^\{|\}$/g, '') 
             .split(',')
-            .map(item => item.trim().replace(/^"|"$/g, '')); // Remove quotes
+            .map(item => item.trim().replace(/^"|"$/g, '')); 
           
           return cleanedString;
         }
         
-        // Try standard JSON parse
         return JSON.parse(coralLevels);
       } catch (error) {
         console.error('Error parsing coralLevels:', error);
@@ -165,12 +160,10 @@ export const initTeamModel = (sequelize: Sequelize) => {
       }
     }
     
-    // If it's already an array, return it
     if (Array.isArray(coralLevels)) {
       return coralLevels;
     }
     
-    // If it's something else, wrap it in an array
     return [coralLevels];
   };
 

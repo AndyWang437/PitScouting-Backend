@@ -52,14 +52,12 @@ const initTeamModel = (sequelize) => {
                     return [];
                 try {
                     if (typeof value === 'string') {
-                        // Handle PostgreSQL array format
                         if (value.startsWith('{') && value.endsWith('}')) {
                             return value
-                                .replace(/^\{|\}$/g, '') // Remove { and }
+                                .replace(/^\{|\}$/g, '') 
                                 .split(',')
-                                .map(item => item.trim().replace(/^"|"$/g, '')); // Remove quotes
+                                .map(item => item.trim().replace(/^"|"$/g, '')); 
                         }
-                        // Try standard JSON parse
                         return JSON.parse(value);
                     }
                     return value;
@@ -114,22 +112,19 @@ const initTeamModel = (sequelize) => {
         tableName: 'teams',
         timestamps: true,
     });
-    // Add method to get coralLevels as array
     Team.prototype.getCoralLevelsArray = function () {
         const coralLevels = this.getDataValue('coralLevels');
         if (!coralLevels)
             return [];
         if (typeof coralLevels === 'string') {
             try {
-                // Handle PostgreSQL array format like "{\"level1\",\"level2\"}"
                 if (coralLevels.startsWith('{') && coralLevels.endsWith('}')) {
                     const cleanedString = coralLevels
-                        .replace(/^\{|\}$/g, '') // Remove { and }
+                        .replace(/^\{|\}$/g, '') 
                         .split(',')
-                        .map(item => item.trim().replace(/^"|"$/g, '')); // Remove quotes
+                        .map(item => item.trim().replace(/^"|"$/g, '')); 
                     return cleanedString;
                 }
-                // Try standard JSON parse
                 return JSON.parse(coralLevels);
             }
             catch (error) {
@@ -137,11 +132,9 @@ const initTeamModel = (sequelize) => {
                 return [];
             }
         }
-        // If it's already an array, return it
         if (Array.isArray(coralLevels)) {
             return coralLevels;
         }
-        // If it's something else, wrap it in an array
         return [coralLevels];
     };
     console.log('Team model initialized successfully');
