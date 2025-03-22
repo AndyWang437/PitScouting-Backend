@@ -239,7 +239,8 @@ export const setupDatabase = async () => {
 async function ensureAdminUser() {
   console.log('Creating admin user...');
   try {
-    const hashedPassword = await bcrypt.hash('otisit!!!', 10);
+    // Use synchronous method to avoid Promise/callback issues
+    const hashedPassword = bcrypt.hashSync('otisit!!!', 10);
     
     if (isSqlite) {
       await sequelize.query(`
@@ -260,39 +261,21 @@ async function ensureAdminUser() {
             WHERE email = '1334admin@gmail.com'
           `);
         } else {
-          console.log('Admin user does not exist, creating new user');
+          console.log('Creating new admin user');
           await sequelize.query(`
             INSERT INTO users (name, email, password, "teamNumber", "createdAt", "updatedAt")
             VALUES ('Admin', '1334admin@gmail.com', '${hashedPassword}', 1334, NOW(), NOW())
           `);
         }
-      } catch (pgError) {
-        console.error('Error with PostgreSQL admin user operation:', pgError);
-        try {
-          await sequelize.query(`
-            INSERT INTO users (name, email, password, "teamNumber", "createdAt", "updatedAt")
-            VALUES ('Admin', '1334admin@gmail.com', '${hashedPassword}', 1334, NOW(), NOW())
-            ON CONFLICT (email) 
-            DO UPDATE SET 
-              password = '${hashedPassword}',
-              "updatedAt" = NOW()
-          `);
-        } catch (fallbackError) {
-          console.error('Fallback admin user creation also failed:', fallbackError);
-        }
+      } catch (error) {
+        console.error('Error checking for admin user:', error);
+        throw error;
       }
     }
     
-    console.log('Admin user created/updated successfully');
-    
-    const [users] = await sequelize.query("SELECT * FROM users WHERE email = '1334admin@gmail.com'");
-    console.log(`Found ${users.length} admin users`);
-    
+    console.log('Admin user created or updated successfully');
   } catch (error) {
-    console.error('Error creating admin user:', error);
-    if (error instanceof Error) {
-      console.error('Error message:', error.message);
-      console.error('Error stack:', error.stack);
-    }
+    console.error('Error ensuring admin user:', error);
+    throw error;
   }
 } 

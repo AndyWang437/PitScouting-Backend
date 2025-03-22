@@ -40,15 +40,23 @@ class User extends sequelize_1.Model {
             hooks: {
                 beforeSave: async (user) => {
                     if (user.changed('password')) {
-                        const salt = await bcryptjs_1.default.genSalt(10);
-                        user.password = await bcryptjs_1.default.hash(user.password, salt);
+                        // Use synchronous methods to avoid Promise issues
+                        const salt = bcryptjs_1.default.genSaltSync(10);
+                        user.password = bcryptjs_1.default.hashSync(user.password, salt);
                     }
                 },
             },
         });
     }
     validatePassword(password) {
-        return bcryptjs_1.default.compare(password, this.password);
+        return new Promise((resolve, reject) => {
+            bcryptjs_1.default.compare(password, this.password, (err, success) => {
+                if (err) {
+                    return reject(err);
+                }
+                resolve(success);
+            });
+        });
     }
 }
 exports.User = User;

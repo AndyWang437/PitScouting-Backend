@@ -2,7 +2,8 @@ import { QueryInterface } from 'sequelize';
 import bcrypt from 'bcryptjs';
 
 export async function up(queryInterface: QueryInterface) {
-  const password = await bcrypt.hash('password123', 10);
+  // Use synchronous version to avoid Promise/callback issues
+  const password = bcrypt.hashSync('password123', 10);
 
   await queryInterface.bulkInsert('users', [
     {

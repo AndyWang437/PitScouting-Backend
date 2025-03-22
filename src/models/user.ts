@@ -56,8 +56,9 @@ export class User extends Model<UserAttributes, UserCreationAttributes> {
         hooks: {
           beforeSave: async (user: User) => {
             if (user.changed('password')) {
-              const salt = await bcrypt.genSalt(10);
-              user.password = await bcrypt.hash(user.password, salt);
+              // Use synchronous methods to avoid Promise issues
+              const salt = bcrypt.genSaltSync(10);
+              user.password = bcrypt.hashSync(user.password, salt);
             }
           },
         },
@@ -66,6 +67,13 @@ export class User extends Model<UserAttributes, UserCreationAttributes> {
   }
 
   public validatePassword(password: string): Promise<boolean> {
-    return bcrypt.compare(password, this.password);
+    return new Promise((resolve, reject) => {
+      bcrypt.compare(password, this.password, (err, success) => {
+        if (err) {
+          return reject(err);
+        }
+        resolve(success);
+      });
+    });
   }
 } 

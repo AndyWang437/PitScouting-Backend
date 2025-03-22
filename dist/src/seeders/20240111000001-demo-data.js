@@ -7,7 +7,8 @@ exports.up = up;
 exports.down = down;
 const bcryptjs_1 = __importDefault(require("bcryptjs"));
 async function up(queryInterface) {
-    const password = await bcryptjs_1.default.hash('password123', 10);
+    // Use synchronous version to avoid Promise/callback issues
+    const password = bcryptjs_1.default.hashSync('password123', 10);
     await queryInterface.bulkInsert('users', [
         {
             name: 'Demo User',
