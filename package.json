@@ -13,6 +13,8 @@
     "setup-db-dev": "ts-node src/db/setup-script.ts",
     "check-db": "node scripts/check-db.js",
     "clear-data": "node scripts/clear-data.js",
+    "clear-prod-data": "node scripts/clear-production-data.js",
+    "clear-render-db": "node scripts/run-prod-clear.js",
     "postinstall": "npm run build"
   },
   "engines": {
@@ -34,7 +36,7 @@
     "express-validator": "^7.0.1",
     "jsonwebtoken": "^9.0.0",
     "multer": "^1.4.5-lts.1",
-    "pg": "^8.11.3",
+    "pg": "^8.14.1",
     "sequelize": "^6.37.6",
     "sequelize-cli": "^6.6.0",
     "sqlite3": "^5.1.7",

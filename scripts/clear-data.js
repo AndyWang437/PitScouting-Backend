@@ -54,7 +54,22 @@ async function clearDatabaseData() {
     });
 
     try {
-      // Delete all teams
+      // Count teams before deletion for verification
+      let teamCount = 0;
+      await new Promise((resolve, reject) => {
+        db.get('SELECT COUNT(*) as count FROM teams', (err, row) => {
+          if (err) {
+            console.error('Error counting teams:', err.message);
+            reject(err);
+            return;
+          }
+          teamCount = row.count;
+          console.log(`Found ${teamCount} teams before deletion.`);
+          resolve();
+        });
+      });
+
+      // Delete all teams with a more forceful approach
       await new Promise((resolve, reject) => {
         db.run('DELETE FROM teams', function(err) {
           if (err) {
@@ -64,6 +79,33 @@ async function clearDatabaseData() {
           }
           console.log(`Deleted ${this.changes} team records.`);
           resolve();
+        });
+      });
+
+      // Double-check to make sure teams are really gone
+      await new Promise((resolve, reject) => {
+        db.get('SELECT COUNT(*) as count FROM teams', (err, row) => {
+          if (err) {
+            console.error('Error counting teams after deletion:', err.message);
+            reject(err);
+            return;
+          }
+          if (row.count > 0) {
+            console.error(`WARNING: Still found ${row.count} teams after deletion! Attempting more aggressive deletion...`);
+            // Try another approach
+            db.run('DELETE FROM teams WHERE 1=1', function(err) {
+              if (err) {
+                console.error('Error in aggressive team deletion:', err.message);
+                reject(err);
+                return;
+              }
+              console.log(`Aggressively deleted ${this.changes} more team records.`);
+              resolve();
+            });
+          } else {
+            console.log('Team deletion confirmed: 0 teams remaining.');
+            resolve();
+          }
         });
       });
 
@@ -95,15 +137,38 @@ async function clearDatabaseData() {
         });
       }
 
-      // Reset auto-increment counters
+      // Reset auto-increment counters - be more thorough
       await new Promise((resolve, reject) => {
-        db.run('DELETE FROM sqlite_sequence WHERE name IN ("teams", "matches")', function(err) {
+        db.run('DELETE FROM sqlite_sequence', function(err) {
           if (err) {
-            console.error('Error resetting auto-increment:', err.message);
-            reject(err);
+            console.error('Error resetting all auto-increment counters:', err.message);
+            // Try more targeted approach as fallback
+            db.run('DELETE FROM sqlite_sequence WHERE name IN ("teams", "matches")', function(err2) {
+              if (err2) {
+                console.error('Error resetting specific auto-increment counters:', err2.message);
+                reject(err2);
+                return;
+              }
+              console.log('Reset team and match auto-increment counters.');
+              resolve();
+            });
             return;
           }
-          console.log('Reset auto-increment counters.');
+          console.log('Reset ALL auto-increment counters.');
+          resolve();
+        });
+      });
+
+      // Vacuum the database to reclaim space
+      await new Promise((resolve, reject) => {
+        db.run('VACUUM', function(err) {
+          if (err) {
+            console.error('Error during VACUUM:', err.message);
+            // Not a critical error, so we still resolve
+            resolve();
+            return;
+          }
+          console.log('Database vacuumed to reclaim space.');
           resolve();
         });
       });
@@ -117,6 +182,23 @@ async function clearDatabaseData() {
             return;
           }
           console.log('All data cleared successfully while preserving database structure.');
+          resolve();
+        });
+      });
+
+      // Final verification
+      await new Promise((resolve, reject) => {
+        db.get('SELECT COUNT(*) as count FROM teams', (err, row) => {
+          if (err) {
+            console.error('Error in final team count verification:', err.message);
+            reject(err);
+            return;
+          }
+          if (row.count > 0) {
+            console.error(`⚠️ WARNING: After all operations, still found ${row.count} teams! Database may need manual intervention.`);
+          } else {
+            console.log('✅ Final verification: 0 teams remaining in database.');
+          }
           resolve();
         });
       });
