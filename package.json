@@ -12,6 +12,7 @@
     "setup-db": "node dist/db/setup-script.js",
     "setup-db-dev": "ts-node src/db/setup-script.ts",
     "check-db": "node scripts/check-db.js",
+    "clear-data": "node scripts/clear-data.js",
     "postinstall": "npm run build"
   },
   "engines": {
