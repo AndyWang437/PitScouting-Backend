@@ -11,7 +11,6 @@ import teamRoutes from './routes/teams';
 import matchRoutes from './routes/matches';
 import testRoutes from './routes/test-routes';
 import imageRoutes from './routes/image-routes';
-import directFixRoutes from './routes/direct-fix';
 import { initDb } from './db/init';
 import { setupDatabase } from './db/setup';
 
@@ -324,7 +323,6 @@ app.use('/api/teams', teamRoutes);
 app.use('/api/matches', matchRoutes);
 app.use('/', testRoutes);
 app.use('/', imageRoutes);
-app.use('/', directFixRoutes);
 
 app.get('/uploads/:filename', (req: Request, res: Response) => {
   const filename = req.params.filename;

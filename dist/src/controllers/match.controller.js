@@ -326,7 +326,7 @@ const createMatch = async (req, res) => {
                     }
                     catch (ormError) {
                         console.error('Error creating match with Sequelize after SQL error:', ormError);
-                        throw insertError; 
+                        throw insertError;
                     }
                 }
             }
@@ -409,7 +409,7 @@ const getMatch = async (req, res) => {
             }
             catch (ormError) {
                 console.error('Error fetching match with Sequelize:', ormError);
-                throw sqlError; 
+                throw sqlError;
             }
         }
     }

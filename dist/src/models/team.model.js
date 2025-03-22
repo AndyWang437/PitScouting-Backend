@@ -54,9 +54,9 @@ const initTeamModel = (sequelize) => {
                     if (typeof value === 'string') {
                         if (value.startsWith('{') && value.endsWith('}')) {
                             return value
-                                .replace(/^\{|\}$/g, '') 
+                                .replace(/^\{|\}$/g, '')
                                 .split(',')
-                                .map(item => item.trim().replace(/^"|"$/g, '')); 
+                                .map(item => item.trim().replace(/^"|"$/g, ''));
                         }
                         return JSON.parse(value);
                     }
@@ -120,9 +120,9 @@ const initTeamModel = (sequelize) => {
             try {
                 if (coralLevels.startsWith('{') && coralLevels.endsWith('}')) {
                     const cleanedString = coralLevels
-                        .replace(/^\{|\}$/g, '') 
+                        .replace(/^\{|\}$/g, '')
                         .split(',')
-                        .map(item => item.trim().replace(/^"|"$/g, '')); 
+                        .map(item => item.trim().replace(/^"|"$/g, ''));
                     return cleanedString;
                 }
                 return JSON.parse(coralLevels);

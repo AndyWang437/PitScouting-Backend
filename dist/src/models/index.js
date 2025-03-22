@@ -36,7 +36,6 @@ else {
     console.log('Using sequelize instance from db/init');
     exports.sequelize = sequelize = init_1.sequelize;
 }
-
 const initializeModels = () => {
     try {
         console.log('Initializing User model...');

@@ -405,7 +405,7 @@ const getTeam = async (req, res) => {
             console.log('Team not found with number:', teamNumber);
             return res.status(404).json({ error: 'Team not found' });
         }
-        const team = teams[0]; 
+        const team = teams[0];
         console.log('Team found:', teamNumber);
         if (team.coralLevels) {
             console.log('Team coralLevels (raw):', team.coralLevels);
@@ -413,9 +413,9 @@ const getTeam = async (req, res) => {
                 try {
                     if (team.coralLevels.startsWith('{') && team.coralLevels.endsWith('}')) {
                         const cleanedString = team.coralLevels
-                            .replace(/^\{|\}$/g, '') 
+                            .replace(/^\{|\}$/g, '')
                             .split(',')
-                            .map((item) => item.trim().replace(/^"|"$/g, '')); 
+                            .map((item) => item.trim().replace(/^"|"$/g, ''));
                         team.coralLevels = cleanedString;
                     }
                     else {

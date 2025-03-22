@@ -29,7 +29,7 @@ const setupDatabase = async () => {
                 ? "SELECT name FROM sqlite_master WHERE type='table'"
                 : "SELECT table_name FROM information_schema.tables WHERE table_schema = 'public'");
             console.log('Existing tables before setup:', existingTables);
-            if (existingTables.length > 3) { 
+            if (existingTables.length > 3) {
                 console.log('Tables already exist, skipping table creation');
                 try {
                     await ensureAdminUser();
